@@ -7,6 +7,8 @@
     "dev": "wrangler pages dev public --kv BLOG_KV --port 8788",
     "seed": "node scripts/seed.js",
     "build-zip": "bash scripts/build-zip.sh",
+    "build-worker": "node scripts/build-worker.js",
+    "build": "node scripts/build-worker.js && bash scripts/build-zip.sh",
     "deploy": "wrangler pages deploy public",
     "preview": "wrangler pages dev public --kv BLOG_KV --port 8788"
   },
