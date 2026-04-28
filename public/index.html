@@ -531,7 +531,7 @@
     </div>
 
     <div class="term-footer">
-        <p>© 2026 TerminalBlog · 终端黑客风格 · Powered by Cloudflare Pages + KV</p>
+        <p>© 2026 TerminalBlog · 终端黑客风格 · Powered by TSE</p>
         <p style="margin-top: 8px; color: var(--gray-dim);">$ echo "Stay hungry, stay hacking."</p>
     </div>
 
@@ -594,6 +594,7 @@
     let currentSlug = null;
     let currentTag = null;
     let currentPage = 1;
+    let adminPage = 1;
     const POSTS_PER_PAGE = 10;
 
     // ============ Auth State ============
@@ -780,7 +781,7 @@
 
         const [stats, posts] = await Promise.all([
             apiGet('/stats'),
-            apiGet('/posts?page=1&limit=' + POSTS_PER_PAGE)
+            apiGet(`/posts?page=${currentPage}&limit=${POSTS_PER_PAGE}`)
         ]);
 
         body.innerHTML = `
@@ -895,14 +896,40 @@
         return html;
     }
 
-    async function goPage(page) {
+    function goPage(page) {
         currentPage = page;
-        const body = document.getElementById('termBody');
-        // Re-render just the post list portion
-        const posts = await apiGet(`/posts?page=${page}&limit=${POSTS_PER_PAGE}`);
-        // Full re-render for simplicity
-        if (currentView === 'home') renderHome(body);
-        else if (currentView === 'tag') renderTagPosts(body);
+        render();
+        window.scrollTo(0, 0);
+    }
+
+    function goAdminPage(page) {
+        adminPage = page;
+        loadAdminPosts();
+    }
+
+    async function loadAdminPosts() {
+        const listEl = document.getElementById('adminPostList');
+        if (!listEl) return;
+        listEl.innerHTML = '<span class="loading"></span>';
+        try {
+            const posts = await apiGet(`/posts?page=${adminPage}&limit=${POSTS_PER_PAGE}`);
+            if (posts.posts.length === 0) {
+                listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';
+            } else {
+                let html = posts.posts.map(p =>
+                    `<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5);">
+                        <a style="color: var(--cyan); cursor: pointer; text-decoration: none;" onclick="editPost('${escapeHtml(p.slug)}')">${escapeHtml(p.title)}</a>
+                        <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">${p.date || ''} · ${p.slug}</span>
+                    </div>`
+                ).join('');
+                if (posts.totalPages > 1) {
+                    html += renderPagination(posts.page, posts.totalPages).replace(/goPage/g, 'goAdminPage');
+                }
+                listEl.innerHTML = html;
+            }
+        } catch (e) {
+            listEl.innerHTML = `<p class="error-text">加载失败: ${escapeHtml(e.message)}</p>`;
+        }
     }
 
     async function renderPost(body) {
@@ -1113,26 +1140,9 @@
             </div>
         `;
 
-        // Load all posts for admin
-        try {
-            const posts = await apiGet('/posts?page=1&limit=100');
-            const listEl = document.getElementById('adminPostList');
-            if (listEl) {
-                if (posts.posts.length === 0) {
-                    listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';
-                } else {
-                    listEl.innerHTML = posts.posts.map(p =>
-                        `<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5);">
-                            <a style="color: var(--cyan); cursor: pointer; text-decoration: none;" onclick="editPost('${escapeHtml(p.slug)}')">${escapeHtml(p.title)}</a>
-                            <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">${p.date || ''} · ${p.slug}</span>
-                        </div>`
-                    ).join('');
-                }
-            }
-        } catch (e) {
-            const listEl = document.getElementById('adminPostList');
-            if (listEl) listEl.innerHTML = `<p class="error-text">加载失败: ${escapeHtml(e.message)}</p>`;
-        }
+        // Load posts for admin (paginated)
+        adminPage = 1;
+        loadAdminPosts();
     }
 
     async function savePost() {
