@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Blog</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0d1117;
+            --bg-card: #161b22;
+            --bg-header: #1a1f29;
+            --green: #00ff41;
+            --green-dim: #00cc33;
+            --cyan: #00e5ff;
+            --yellow: #ffd700;
+            --red: #ff6b6b;
+            --purple: #d2a8ff;
+            --orange: #ffa657;
+            --gray: #8b949e;
+            --gray-dim: #484f58;
+            --border: #30363d;
+            --text: #c9d1d9;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        /* Scanline effect */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.015) 2px,
+                rgba(0, 255, 65, 0.015) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Blinking cursor */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: var(--green);
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+            margin-left: 2px;
+        }
+
+        /* Typing animation */
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        /* Terminal window */
+        .terminal {
+            max-width: 900px;
+            margin: 30px auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Title bar */
+        .title-bar {
+            background: var(--bg-header);
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            user-select: none;
+        }
+        .title-bar .dot {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .title-bar .dot:hover { opacity: 0.8; }
+        .dot.red { background: #ff5f57; }
+        .dot.yellow { background: #febc2e; }
+        .dot.green { background: #28c840; }
+        .title-bar .title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.8em;
+            color: var(--gray);
+        }
+
+        /* Terminal body */
+        .term-body {
+            background: var(--bg);
+            padding: 24px;
+        }
+
+        /* Command prompt */
+        .prompt {
+            margin-bottom: 8px;
+        }
+        .prompt .user {
+            color: var(--green);
+            font-weight: 600;
+        }
+        .prompt .path {
+            color: var(--cyan);
+        }
+        .prompt .symbol {
+            color: var(--gray);
+        }
+        .prompt .cmd {
+            color: var(--text);
+        }
+
+        /* Output */
+        .output {
+            margin: 12px 0 20px;
+            padding-left: 0;
+        }
+        .output p {
+            margin-bottom: 6px;
+        }
+
+        /* ASCII art */
+        .ascii-art {
+            color: var(--green);
+            font-size: 0.7em;
+            line-height: 1.2;
+            margin: 20px 0;
+            white-space: pre;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        /* Separator */
+        .sep {
+            color: var(--gray-dim);
+            margin: 20px 0;
+            font-size: 0.85em;
+        }
+
+        /* Post listing */
+        .ls-output {
+            margin: 12px 0;
+        }
+        .ls-row {
+            display: grid;
+            grid-template-columns: 100px 80px 1fr 80px;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.9em;
+        }
+        @media (max-width: 600px) {
+            .ls-row {
+                grid-template-columns: 1fr 80px;
+            }
+            .ls-row .perm, .ls-row .size { display: none; }
+            .ls-row.header span:nth-child(1),
+            .ls-row.header span:nth-child(2) { display: none; }
+        }
+        .ls-row.header {
+            color: var(--gray-dim);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 4px;
+        }
+        .ls-row .perm { color: var(--gray); }
+        .ls-row .size { color: var(--orange); }
+        .ls-row .name a {
+            color: var(--cyan);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .ls-row .name a:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+        }
+        .ls-row .date-col { color: var(--gray); }
+
+        /* Post detail card */
+        .post-detail {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin: 16px 0;
+            overflow: hidden;
+        }
+        .post-detail .file-header {
+            background: var(--bg-header);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+            border-bottom: 1px solid var(--border);
+        }
+        .post-detail .file-header .filename {
+            color: var(--cyan);
+        }
+        .post-detail .file-header .lang {
+            color: var(--purple);
+        }
+        .post-detail .file-body {
+            padding: 20px;
+        }
+        .post-detail .file-body h2 {
+            color: var(--green);
+            font-size: 1.3em;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .post-detail .file-body .meta-line {
+            color: var(--gray);
+            font-size: 0.8em;
+            margin-bottom: 16px;
+        }
+        .post-detail .file-body .meta-line .tag {
+            color: var(--yellow);
+        }
+        .post-detail .file-body .meta-line .date-highlight {
+            color: var(--orange);
+        }
+        .post-detail .file-body .content-text {
+            color: var(--text);
+            font-size: 0.9em;
+            line-height: 1.8;
+            margin-bottom: 16px;
+            white-space: pre-wrap;
+        }
+
+        /* Markdown rendered content */
+        .post-content {
+            color: var(--text);
+            font-size: 0.9em;
+            line-height: 1.9;
+        }
+        .post-content h1 { color: var(--green); margin: 24px 0 12px; font-size: 1.4em; }
+        .post-content h2 { color: var(--green); margin: 20px 0 10px; font-size: 1.2em; }
+        .post-content h3 { color: var(--cyan); margin: 16px 0 8px; font-size: 1.05em; }
+        .post-content p { margin-bottom: 12px; }
+        .post-content a { color: var(--cyan); text-decoration: none; }
+        .post-content a:hover { text-decoration: underline; color: var(--green); }
+        .post-content code {
+            background: var(--bg-header);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            color: var(--orange);
+        }
+        .post-content pre {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 16px;
+            margin: 12px 0;
+            overflow-x: auto;
+            font-size: 0.85em;
+        }
+        .post-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text);
+        }
+        .post-content blockquote {
+            border-left: 3px solid var(--green);
+            padding-left: 16px;
+            margin: 12px 0;
+            color: var(--gray);
+        }
+        .post-content ul, .post-content ol {
+            padding-left: 24px;
+            margin-bottom: 12px;
+        }
+        .post-content li { margin-bottom: 4px; }
+        .post-content img {
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        .post-content hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 20px 0;
+        }
+
+        /* Back link */
+        .back-link {
+            color: var(--green);
+            text-decoration: none;
+            font-size: 0.85em;
+            display: inline-block;
+            margin-top: 12px;
+        }
+        .back-link:hover { text-decoration: underline; }
+
+        /* Tags section */
+        .tags-section {
+            margin: 20px 0;
+        }
+        .tag-item {
+            display: inline-block;
+            padding: 4px 12px;
+            margin: 4px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: var(--text);
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .tag-item:hover, .tag-item.active {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(0, 255, 65, 0.05);
+        }
+        .tag-item .count {
+            color: var(--gray-dim);
+            margin-left: 4px;
+        }
+
+        /* Status bar */
+        .status-bar {
+            background: var(--bg-header);
+            border-top: 1px solid var(--border);
+            padding: 6px 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75em;
+            color: var(--gray);
+        }
+        .status-bar .branch { color: var(--green); }
+        .status-bar .mode { color: var(--cyan); }
+
+        /* System info */
+        .sysinfo {
+            color: var(--gray);
+            font-size: 0.8em;
+            margin: 12px 0;
+        }
+        .sysinfo .highlight {
+            color: var(--green);
+        }
+        .sysinfo .warn {
+            color: var(--yellow);
+        }
+
+        /* Footer terminal */
+        .term-footer {
+            max-width: 900px;
+            margin: 0 auto 30px;
+            text-align: center;
+            font-size: 0.75em;
+            color: var(--gray-dim);
+        }
+        .term-footer a {
+            color: var(--gray);
+            text-decoration: none;
+        }
+        .term-footer a:hover { color: var(--green); }
+
+        /* Highlight effect */
+        .glow {
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        /* Loading */
+        .loading {
+            color: var(--green);
+            font-size: 0.85em;
+        }
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        /* Error */
+        .error-text {
+            color: var(--red);
+            font-size: 0.85em;
+        }
+
+        /* Pagination */
+        .pagination {
+            margin: 16px 0;
+            display: flex;
+            gap: 8px;
+        }
+        .pagination a {
+            color: var(--cyan);
+            text-decoration: none;
+            padding: 4px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pagination a:hover {
+            border-color: var(--green);
+            color: var(--green);
+        }
+        .pagination a.active {
+            background: var(--green);
+            color: var(--bg);
+            border-color: var(--green);
+        }
+        .pagination a.disabled {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        /* Admin panel */
+        .admin-section {
+            margin: 16px 0;
+        }
+        .admin-section input,
+        .admin-section textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+        .admin-section textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+        .admin-section input:focus,
+        .admin-section textarea:focus {
+            outline: none;
+            border-color: var(--green);
+        }
+        .admin-section label {
+            color: var(--gray);
+            font-size: 0.8em;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .admin-btn {
+            background: var(--bg-header);
+            color: var(--green);
+            border: 1px solid var(--green);
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .admin-btn:hover {
+            background: rgba(0, 255, 65, 0.1);
+        }
+        .admin-btn.danger {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        .admin-btn.danger:hover {
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        /* Nav links in terminal */
+        .nav-links {
+            margin: 12px 0;
+        }
+        .nav-links a {
+            color: var(--cyan);
+            text-decoration: none;
+            margin-right: 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--green);
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="title-bar">
+            <div class="dot red" onclick="navigate('home')"></div>
+            <div class="dot yellow" onclick="navigate('tags')"></div>
+            <div class="dot green" onclick="navigate('admin')"></div>
+            <div class="title" id="titleBar">hacker@blog ~ zsh</div>
+        </div>
+
+        <div class="term-body" id="termBody">
+            <div class="loading"></div>
+        </div>
+
+        <div class="status-bar">
+            <div>
+                <span class="branch">⎇ main</span> · TerminalBlog
+            </div>
+            <div>
+                <span class="mode" id="statusMode">NORMAL</span> · utf-8 · markdown
+            </div>
+        </div>
+    </div>
+
+    <div class="term-footer">
+        <p>© 2026 TerminalBlog · 终端黑客风格 · Powered by Cloudflare Pages + KV</p>
+        <p style="margin-top: 8px; color: var(--gray-dim);">$ echo "Stay hungry, stay hacking."</p>
+    </div>
+
+    <script>
+    // ============ Simple Markdown Parser ============
+    function parseMarkdown(md) {
+        let html = md
+            // Code blocks
+            .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+                `<pre><code>${escapeHtml(code.trim())}</code></pre>`)
+            // Inline code
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            // Headers
+            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+            .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+            // Bold & Italic
+            .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            // Images
+            .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
+            // Links
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+            // Blockquote
+            .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+            // Horizontal rule
+            .replace(/^---$/gm, '<hr>')
+            // Unordered list
+            .replace(/^- (.+)$/gm, '<li>$1</li>')
+            // Paragraphs
+            .replace(/\n\n/g, '</p><p>')
+            // Line breaks within paragraphs
+            .replace(/\n/g, '<br>');
+
+        // Wrap consecutive <li> in <ul>
+        html = html.replace(/((?:<li>.*?<\/li><br>?)+)/g, '<ul>$1</ul>');
+        // Clean up
+        html = '<p>' + html + '</p>';
+        html = html.replace(/<p><\/p>/g, '');
+        html = html.replace(/<p>(<h[1-3]>)/g, '$1');
+        html = html.replace(/(<\/h[1-3]>)<\/p>/g, '$1');
+        html = html.replace(/<p>(<pre>)/g, '$1');
+        html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+        html = html.replace(/<p>(<ul>)/g, '$1');
+        html = html.replace(/(<\/ul>)<\/p>/g, '$1');
+        html = html.replace(/<p>(<blockquote>)/g, '$1');
+        html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
+        html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
+
+        return html;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+    }
+
+    // ============ State & Routing ============
+    let currentView = 'home';
+    let currentSlug = null;
+    let currentTag = null;
+    let currentPage = 1;
+    const POSTS_PER_PAGE = 10;
+
+    // ============ Auth State ============
+    let authToken = localStorage.getItem('blog_token') || null;
+    let authUser = localStorage.getItem('blog_user') || null;
+
+    function navigate(view, param) {
+        if (view === 'home') {
+            currentView = 'home';
+            currentSlug = null;
+            currentTag = null;
+            currentPage = 1;
+        } else if (view === 'post') {
+            currentView = 'post';
+            currentSlug = param;
+        } else if (view === 'tag') {
+            currentView = 'tag';
+            currentTag = param;
+            currentPage = 1;
+        } else if (view === 'tags') {
+            currentView = 'tags';
+        } else if (view === 'admin') {
+            currentView = 'admin';
+        }
+        render();
+        window.scrollTo(0, 0);
+    }
+
+    // ============ API Calls ============
+    async function apiGet(path) {
+        const res = await fetch(`/api${path}`);
+        if (!res.ok) throw new Error(`API Error: ${res.status}`);
+        return res.json();
+    }
+
+    async function apiPost(path, data) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const res = await fetch(`/api${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(data)
+        });
+        if (res.status === 401) {
+            clearAuth();
+            const err = await res.json().catch(() => ({ error: '登录已过期' }));
+            throw new Error(err.error || '需要重新登录');
+        }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || res.statusText);
+        }
+        return res.json();
+    }
+
+    async function apiDelete(path) {
+        const headers = {};
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const res = await fetch(`/api${path}`, {
+            method: 'DELETE',
+            headers
+        });
+        if (res.status === 401) {
+            clearAuth();
+            throw new Error('需要重新登录');
+        }
+        if (!res.ok) throw new Error(`API Error: ${res.status}`);
+        return res.json();
+    }
+
+    // ============ Auth Functions ============
+    function isLoggedIn() {
+        return !!authToken;
+    }
+
+    function clearAuth() {
+        authToken = null;
+        authUser = null;
+        localStorage.removeItem('blog_token');
+        localStorage.removeItem('blog_user');
+    }
+
+    async function doLogin() {
+        const username = document.getElementById('loginUser').value.trim();
+        const password = document.getElementById('loginPass').value;
+        const msgEl = document.getElementById('loginMsg');
+        if (!username || !password) {
+            msgEl.innerHTML = '<p class="error-text">[ERROR] 请输入用户名和密码</p>';
+            return;
+        }
+        try {
+            const result = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            }).then(r => {
+                if (!r.ok) return r.json().then(e => { throw new Error(e.error || '登录失败'); });
+                return r.json();
+            });
+            authToken = result.token;
+            authUser = result.username;
+            localStorage.setItem('blog_token', authToken);
+            localStorage.setItem('blog_user', authUser);
+            render();
+        } catch (err) {
+            msgEl.innerHTML = `<p class="error-text">[ERROR] ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    async function doLogout() {
+        try {
+            if (authToken) {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+            }
+        } catch (e) {}
+        clearAuth();
+        navigate('admin');
+    }
+
+    async function checkAuth() {
+        if (!authToken) return false;
+        try {
+            const res = await fetch('/api/auth/verify', {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await res.json();
+            if (data.valid) {
+                authUser = data.username;
+                return true;
+            }
+            clearAuth();
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // ============ Renderers ============
+    function setTitle(text) {
+        document.getElementById('titleBar').textContent = text;
+        document.title = text.split(' ~ ')[0] + ' - Terminal Blog';
+    }
+
+    function prompt(user, path, cmd) {
+        return `<div class="prompt">
+            <span class="user">${user}</span><span class="symbol">@</span><span class="path">${path}</span><span class="symbol">:~$</span> <span class="cmd">${cmd}</span>
+        </div>`;
+    }
+
+    function separator(text) {
+        if (text) return `<div class="sep"># ─── ${text} ${'─'.repeat(Math.max(1, 40 - text.length))}</div>`;
+        return `<div class="sep"># ${'─'.repeat(50)}</div>`;
+    }
+
+    async function render() {
+        const body = document.getElementById('termBody');
+        body.innerHTML = '<div class="loading"></div>';
+
+        try {
+            switch (currentView) {
+                case 'home': await renderHome(body); break;
+                case 'post': await renderPost(body); break;
+                case 'tag': await renderTagPosts(body); break;
+                case 'tags': await renderTags(body); break;
+                case 'admin': await renderAdmin(body); break;
+            }
+        } catch (err) {
+            body.innerHTML = `
+                ${prompt('hacker', 'blog', 'cat ./error.log')}
+                <div class="output">
+                    <p class="error-text">[ERROR] ${escapeHtml(err.message)}</p>
+                    <p style="color: var(--gray); margin-top: 12px;">Try refreshing or <a href="#" onclick="navigate('home'); return false;" style="color: var(--cyan);">return home</a></p>
+                </div>
+            `;
+        }
+    }
+
+    async function renderHome(body) {
+        setTitle('hacker@blog ~ zsh');
+        document.getElementById('statusMode').textContent = 'NORMAL';
+
+        const [stats, posts] = await Promise.all([
+            apiGet('/stats'),
+            apiGet('/posts?page=1&limit=' + POSTS_PER_PAGE)
+        ]);
+
+        body.innerHTML = `
+            <div class="ascii-art glow">
+ ____   ____ ___ ____  _     ___ _   _ _   _ _____ ____
+|  _ \\ / ___|_ _|  _ \\| |   |_ _| \\ | | \\ | | ____|  _ \\
+| |_) | |    | || |_) | |    | ||  \\| |  \\| |  _| | |_) |
+|  _ <| |___ | ||  _ <| |___ | || |\\  | |\\  | |___|  _ <
+|_| \\_\\\\____|___|_| \\_\\_____|___|_| \\_|_| \\_|_____|_| \\_\\
+            </div>
+
+            <div class="sysinfo">
+                <p><span class="highlight">$</span> uname -a</p>
+                <p>TerminalBlog 1.0.0 x86_64 Cloudflare/Pages UTF-8</p>
+            </div>
+
+            ${separator()}
+
+            ${prompt('hacker', 'blog', 'cat ./welcome.txt')}
+            <div class="output">
+                <p style="color: var(--green);">欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。</p>
+                <p style="color: var(--gray);">共 ${stats.totalPosts} 篇文章 · 上次更新: ${stats.lastUpdate || 'N/A'} · 运行天数: ${stats.uptime} 天</p>
+            </div>
+
+            <div class="nav-links">
+                <a onclick="navigate('home')" class="active">[首页]</a>
+                <a onclick="navigate('tags')">[标签]</a>
+                <a onclick="navigate('admin')">[管理]</a>
+            </div>
+
+            ${separator('文章列表')}
+
+            ${prompt('hacker', 'blog', 'ls -la ./posts/')}
+            ${renderPostList(posts.posts)}
+
+            ${posts.totalPages > 1 ? renderPagination(posts.page, posts.totalPages) : ''}
+
+            ${separator('标签云')}
+
+            ${prompt('hacker', 'blog', 'cat ./tags.json')}
+            <div id="homeTags" class="tags-section">
+                <span class="loading"></span>
+            </div>
+
+            ${separator('系统状态')}
+
+            ${prompt('hacker', 'blog', 'neofetch')}
+            <div class="sysinfo">
+                <p><span class="warn">OS:</span> TerminalBlog 1.0.0</p>
+                <p><span class="warn">Host:</span> Cloudflare Pages + KV</p>
+                <p><span class="warn">Articles:</span> ${stats.totalPosts} posts</p>
+                <p><span class="warn">Engine:</span> Cloudflare Workers</p>
+                <p><span class="warn">Storage:</span> Cloudflare KV</p>
+            </div>
+
+            ${separator()}
+
+            <div class="prompt" style="margin-top: 16px;">
+                <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+            </div>
+        `;
+
+        // Load tags asynchronously
+        try {
+            const tagsData = await apiGet('/tags');
+            const tagsEl = document.getElementById('homeTags');
+            if (tagsEl) {
+                tagsEl.innerHTML = tagsData.tags.map(t =>
+                    `<a class="tag-item" onclick="navigate('tag', '${escapeHtml(t.name)}')">${escapeHtml(t.name)}<span class="count">(${t.count})</span></a>`
+                ).join('');
+            }
+        } catch (e) {
+            const tagsEl = document.getElementById('homeTags');
+            if (tagsEl) tagsEl.innerHTML = '<p class="error-text">标签加载失败</p>';
+        }
+    }
+
+    function renderPostList(posts) {
+        if (!posts || posts.length === 0) {
+            return '<div class="output"><p style="color: var(--gray);">暂无文章</p></div>';
+        }
+
+        let html = `<div class="ls-output">
+            <div class="ls-row header">
+                <span>权限</span>
+                <span>大小</span>
+                <span>文件名</span>
+                <span>日期</span>
+            </div>`;
+
+        posts.forEach(post => {
+            html += `<div class="ls-row">
+                <span class="perm">-rw-r--r--</span>
+                <span class="size">${post.size || '---'}</span>
+                <span class="name"><a onclick="navigate('post', '${escapeHtml(post.slug)}')">${escapeHtml(post.title)}.md</a></span>
+                <span class="date-col">${post.date || '--'}</span>
+            </div>`;
+        });
+
+        html += '</div>';
+        return html;
+    }
+
+    function renderPagination(page, totalPages) {
+        let html = '<div class="pagination">';
+        html += `<a onclick="goPage(${page - 1})" class="${page <= 1 ? 'disabled' : ''}">← 上一页</a>`;
+        for (let i = 1; i <= totalPages; i++) {
+            html += `<a onclick="goPage(${i})" class="${i === page ? 'active' : ''}">${i}</a>`;
+        }
+        html += `<a onclick="goPage(${page + 1})" class="${page >= totalPages ? 'disabled' : ''}">下一页 →</a>`;
+        html += '</div>';
+        return html;
+    }
+
+    async function goPage(page) {
+        currentPage = page;
+        const body = document.getElementById('termBody');
+        // Re-render just the post list portion
+        const posts = await apiGet(`/posts?page=${page}&limit=${POSTS_PER_PAGE}`);
+        // Full re-render for simplicity
+        if (currentView === 'home') renderHome(body);
+        else if (currentView === 'tag') renderTagPosts(body);
+    }
+
+    async function renderPost(body) {
+        const post = await apiGet(`/post/${currentSlug}`);
+        setTitle(`${post.title} ~ blog`);
+        document.getElementById('statusMode').textContent = 'INSERT';
+
+        const tags = (post.tags || []).map(t => `<span class="tag">[${escapeHtml(t)}]</span>`).join(' · ');
+
+        body.innerHTML = `
+            ${prompt('hacker', 'blog', `cat ./posts/${currentSlug}.md`)}
+
+            <div class="nav-links">
+                <a onclick="navigate('home')">[← 返回首页]</a>
+                <a onclick="navigate('tags')">[标签]</a>
+            </div>
+
+            <div class="post-detail">
+                <div class="file-header">
+                    <span class="filename">${escapeHtml(currentSlug)}.md</span>
+                    <span class="lang">markdown</span>
+                </div>
+                <div class="file-body">
+                    <h2 class="glow"># ${escapeHtml(post.title)}</h2>
+                    <div class="meta-line">
+                        ${tags}${tags ? ' · ' : ''}发表于 <span class="date-highlight">${post.date || 'N/A'}</span> · 阅读约 ${post.readTime || '?'} 分钟
+                    </div>
+                    <div class="post-content">
+                        ${post.htmlContent || `<p class="content-text">${escapeHtml(post.content || '')}</p>`}
+                    </div>
+                </div>
+            </div>
+
+            ${separator()}
+
+            <div class="prompt" style="margin-top: 16px;">
+                <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+            </div>
+        `;
+    }
+
+    async function renderTagPosts(body) {
+        setTitle(`${currentTag || '全部标签'} ~ blog`);
+        document.getElementById('statusMode').textContent = 'NORMAL';
+
+        const posts = await apiGet(`/posts?tag=${encodeURIComponent(currentTag || '')}&page=${currentPage}&limit=${POSTS_PER_PAGE}`);
+
+        body.innerHTML = `
+            ${prompt('hacker', 'blog', `grep -r "${escapeHtml(currentTag)}" ./posts/`)}
+
+            <div class="nav-links">
+                <a onclick="navigate('home')">[首页]</a>
+                <a onclick="navigate('tags')" class="active">[标签]</a>
+                <a onclick="navigate('admin')">[管理]</a>
+            </div>
+
+            ${separator(`标签: ${currentTag}`)}
+
+            ${renderPostList(posts.posts)}
+
+            ${posts.totalPages > 1 ? renderPagination(posts.page, posts.totalPages) : ''}
+
+            ${separator()}
+
+            <div class="prompt" style="margin-top: 16px;">
+                <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+            </div>
+        `;
+    }
+
+    async function renderTags(body) {
+        setTitle('tags ~ blog');
+        document.getElementById('statusMode').textContent = 'NORMAL';
+
+        const tagsData = await apiGet('/tags');
+
+        let tagsHtml = tagsData.tags.map(t =>
+            `<a class="tag-item" onclick="navigate('tag', '${escapeHtml(t.name)}')">${escapeHtml(t.name)}<span class="count">(${t.count})</span></a>`
+        ).join('');
+
+        body.innerHTML = `
+            ${prompt('hacker', 'blog', 'cat ./tags.json')}
+
+            <div class="nav-links">
+                <a onclick="navigate('home')">[首页]</a>
+                <a onclick="navigate('tags')" class="active">[标签]</a>
+                <a onclick="navigate('admin')">[管理]</a>
+            </div>
+
+            ${separator('全部标签')}
+
+            <div class="tags-section">
+                ${tagsHtml || '<p style="color: var(--gray);">暂无标签</p>'}
+            </div>
+
+            ${separator()}
+
+            <div class="prompt" style="margin-top: 16px;">
+                <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+            </div>
+        `;
+    }
+
+    async function renderAdmin(body) {
+        setTitle('admin ~ blog');
+        document.getElementById('statusMode').textContent = 'ADMIN';
+
+        // Check if logged in
+        const authenticated = await checkAuth();
+
+        if (!authenticated) {
+            // Show login form
+            body.innerHTML = `
+                ${prompt('hacker', 'blog', 'sudo ./admin-panel')}
+
+                <div class="nav-links">
+                    <a onclick="navigate('home')">[首页]</a>
+                    <a onclick="navigate('tags')">[标签]</a>
+                    <a onclick="navigate('admin')" class="active">[管理]</a>
+                </div>
+
+                ${separator('身份验证')}
+
+                <div class="ascii-art" style="font-size: 0.6em; line-height: 1.3;">
+ ╦ ╦┌─┐┌┐ ╔═╗╔═╗    ╔╦╗┌─┐┌┐┌┌─┐┌─┐┬  ┌─┐
+ ║║║├┤ ├┴┐║ ║╚═╗    ║║║├─┤│││├┤ │ ││  ├┤ 
+ ╚╩╝└─┘└─┘╚═╝╚═╝    ╩ ╩┴ ┴┘└┘└─┘└─┘┴─┘└─┘
+                </div>
+
+                <div class="output">
+                    <p style="color: var(--yellow);">⚠ 需要管理员身份验证才能访问管理面板</p>
+                    <p style="color: var(--gray); font-size: 0.8em;">请输入管理员帐号和密码以继续</p>
+                </div>
+
+                <div class="admin-section" style="max-width: 400px;">
+                    <label>用户名</label>
+                    <input type="text" id="loginUser" placeholder="admin" 
+                           onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()" />
+
+                    <label>密码</label>
+                    <input type="password" id="loginPass" placeholder="••••••••" 
+                           onkeydown="if(event.key==='Enter') doLogin()" />
+
+                    <div style="margin-top: 12px;">
+                        <button class="admin-btn" onclick="doLogin()">🔑 登录</button>
+                    </div>
+
+                    <div id="loginMsg" style="margin-top: 12px;"></div>
+                </div>
+
+                ${separator()}
+
+                <div class="prompt" style="margin-top: 16px;">
+                    <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+                </div>
+            `;
+            return;
+        }
+
+        // Show admin panel (authenticated)
+        body.innerHTML = `
+            ${prompt('hacker', 'blog', 'sudo ./admin-panel')}
+
+            <div class="nav-links">
+                <a onclick="navigate('home')">[首页]</a>
+                <a onclick="navigate('tags')">[标签]</a>
+                <a onclick="navigate('admin')" class="active">[管理]</a>
+                <a onclick="doLogout()" style="color: var(--red);">[退出登录]</a>
+            </div>
+
+            ${separator('博客管理面板')}
+
+            <div class="output">
+                <p style="color: var(--green);">✅ 已登录为: <span style="color: var(--cyan);">${escapeHtml(authUser || 'admin')}</span></p>
+            </div>
+
+            <div class="admin-section">
+                <label>Slug (URL标识符，如: my-first-post)</label>
+                <input type="text" id="adminSlug" placeholder="my-first-post" />
+
+                <label>标题</label>
+                <input type="text" id="adminTitle" placeholder="文章标题" />
+
+                <label>标签 (逗号分隔，如: 技术,教程,Linux)</label>
+                <input type="text" id="adminTags" placeholder="技术, 教程" />
+
+                <label>内容 (Markdown 格式)</label>
+                <textarea id="adminContent" placeholder="# 我的文章标题\n\n文章内容..."></textarea>
+
+                <div style="margin-top: 12px; display: flex; gap: 12px;">
+                    <button class="admin-btn" onclick="savePost()">💾 发布文章</button>
+                    <button class="admin-btn danger" onclick="deletePost()">🗑️ 删除文章</button>
+                </div>
+
+                <div id="adminMsg" style="margin-top: 12px;"></div>
+            </div>
+
+            ${separator('已有文章')}
+
+            <div id="adminPostList">
+                <span class="loading"></span>
+            </div>
+
+            ${separator()}
+
+            <div class="prompt" style="margin-top: 16px;">
+                <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
+            </div>
+        `;
+
+        // Load all posts for admin
+        try {
+            const posts = await apiGet('/posts?page=1&limit=100');
+            const listEl = document.getElementById('adminPostList');
+            if (listEl) {
+                if (posts.posts.length === 0) {
+                    listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';
+                } else {
+                    listEl.innerHTML = posts.posts.map(p =>
+                        `<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5);">
+                            <a style="color: var(--cyan); cursor: pointer; text-decoration: none;" onclick="editPost('${escapeHtml(p.slug)}')">${escapeHtml(p.title)}</a>
+                            <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">${p.date || ''} · ${p.slug}</span>
+                        </div>`
+                    ).join('');
+                }
+            }
+        } catch (e) {
+            const listEl = document.getElementById('adminPostList');
+            if (listEl) listEl.innerHTML = `<p class="error-text">加载失败: ${escapeHtml(e.message)}</p>`;
+        }
+    }
+
+    async function savePost() {
+        const slug = document.getElementById('adminSlug').value.trim();
+        const title = document.getElementById('adminTitle').value.trim();
+        const tags = document.getElementById('adminTags').value.trim();
+        const content = document.getElementById('adminContent').value;
+        const msgEl = document.getElementById('adminMsg');
+
+        if (!slug || !title || !content) {
+            msgEl.innerHTML = '<p class="error-text">[ERROR] Slug、标题和内容不能为空</p>';
+            return;
+        }
+
+        try {
+            const result = await apiPost('/post', {
+                slug,
+                title,
+                tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                content
+            });
+            msgEl.innerHTML = `<p style="color: var(--green);">✅ ${result.message || '保存成功'}</p>`;
+            // Refresh admin post list
+            navigate('admin');
+        } catch (err) {
+            msgEl.innerHTML = `<p class="error-text">[ERROR] ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    async function deletePost() {
+        const slug = document.getElementById('adminSlug').value.trim();
+        const msgEl = document.getElementById('adminMsg');
+
+        if (!slug) {
+            msgEl.innerHTML = '<p class="error-text">[ERROR] 请输入要删除的 Slug</p>';
+            return;
+        }
+
+        if (!confirm(`确认删除文章 "${slug}" ?`)) return;
+
+        try {
+            const result = await apiDelete(`/post/${slug}`);
+            msgEl.innerHTML = `<p style="color: var(--green);">✅ ${result.message || '删除成功'}</p>`;
+            navigate('admin');
+        } catch (err) {
+            msgEl.innerHTML = `<p class="error-text">[ERROR] ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    async function editPost(slug) {
+        try {
+            const post = await apiGet(`/post/${slug}`);
+            document.getElementById('adminSlug').value = post.slug || '';
+            document.getElementById('adminTitle').value = post.title || '';
+            document.getElementById('adminTags').value = (post.tags || []).join(', ');
+            document.getElementById('adminContent').value = post.content || '';
+            document.getElementById('adminMsg').innerHTML = `<p style="color: var(--cyan);">📝 已加载文章: ${escapeHtml(post.title)}</p>`;
+            window.scrollTo(0, 0);
+        } catch (err) {
+            document.getElementById('adminMsg').innerHTML = `<p class="error-text">[ERROR] ${escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    // ============ Init ============
+    render();
+    </script>
+</body>
+</html>

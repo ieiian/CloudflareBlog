@@ -1,0 +1,15 @@
+{
+  "name": "terminal-blog",
+  "version": "1.0.0",
+  "description": "终端风格博客 - Cloudflare Pages + KV",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev public --kv BLOG_KV --port 8788",
+    "seed": "node scripts/seed.js",
+    "deploy": "wrangler pages deploy public",
+    "preview": "wrangler pages dev public --kv BLOG_KV --port 8788"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
