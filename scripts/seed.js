@@ -10,129 +10,6 @@
 
 const POSTS = [
     {
-        slug: 'markdown-format-demo',
-        title: 'Markdown 格式演示：博客支持的所有语法',
-        tags: ['演示', 'Markdown', '博客'],
-        date: '2026-04-28',
-        content: `# Markdown 格式演示
-
-欢迎阅读这篇格式演示文章！本文展示了 Terminal Blog 支持的所有 Markdown 语法。你可以通过管理面板编辑这篇文章来学习 Markdown 的用法。
-
----
-
-## 基础格式
-
-这是一段普通文字。你可以用 **粗体** 来强调重点，用 *斜体* 表达语气，或者用 ***粗斜体*** 两者兼得。
-
-行内代码使用反引号：\`console.log('Hello World')\`，看起来像终端命令一样。
-
-> 这是一段引用文字。引用可以用来突出显示重要的观点或者名人名言。
-> 在终端风格中，引用会有绿色左边框和微妙的背景色。
-
-## 列表
-
-### 无序列表
-
-- **第一项** — 支持粗体
-- **第二项** — 带有 \`inline code\`
-- **第三项** — 普通 list item
-- 也可以嵌套使用
-
-### 有序列表
-
-1. 克隆仓库到本地
-2. 安装项目依赖
-3. 运行开发服务器
-4. 开始编写文章
-
-## 代码块
-
-### JavaScript 示例
-
-\`\`\`javascript
-// 一个简单的博客系统
-class TerminalBlog {
-    constructor(name) {
-        this.name = name;
-        this.posts = [];
-    }
-
-    addPost(title, content) {
-        this.posts.push({ title, content, date: new Date() });
-        console.log(\`📝 文章已发布: \${title}\`);
-    }
-
-    listPosts() {
-        return this.posts.map(p => \`[\${p.date}] \${p.title}\`);
-    }
-}
-
-const blog = new TerminalBlog('My Blog');
-blog.addPost('第一篇', 'Hello World!');
-\`\`\`
-
-### Bash 示例
-
-\`\`\`bash
-#!/bin/bash
-# 快速部署脚本
-
-echo "🚀 开始部署 Terminal Blog..."
-
-# 构建
-npm run build
-
-# 部署到 Cloudflare
-npx wrangler deploy
-
-echo "✅ 部署完成！"
-echo "🌍 访问 https://your-blog.pages.dev"
-\`\`\`
-
-### Python 示例
-
-\`\`\`python
-# Markdown 解析器示例
-import re
-
-def parse_markdown(text):
-    """简单的 Markdown 转 HTML"""
-    # 标题
-    text = re.sub(r'^# (.+)$', r'<h1>\\1</h1>', text, flags=re.MULTILINE)
-    text = re.sub(r'^## (.+)$', r'<h2>\\1</h2>', text, flags=re.MULTILINE)
-    # 粗体
-    text = re.sub(r'\\*\\*(.+?)\\*\\*', r'<strong>\\1</strong>', text)
-    return text
-\`\`\`
-
-## 表格
-
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| 文章列表 | ✅ 已完成 | 支持分页浏览 |
-| 文章详情 | ✅ 已完成 | Markdown 渲染 |
-| 标签系统 | ✅ 已完成 | 标签云 + 筛选 |
-| 管理面板 | ✅ 已完成 | 登录 + CRUD |
-| KV 存储 | ✅ 已完成 | Cloudflare KV |
-| 搜索功能 | 🔄 开发中 | 全文搜索 |
-
-## 链接
-
-访问 [Cloudflare 官网](https://www.cloudflare.com) 了解更多，或者查看 [Wrangler 文档](https://developers.cloudflare.com/workers/wrangler/) 学习部署。
-
----
-
-## 关于终端美学
-
-终端风格的美学在于**简洁**和*高效*。每一行文字都有其意义，没有多余的装饰。
-
-> "代码是写给人看的，只是顺便让机器执行。" — Harold Abelson
-
-希望这篇演示文章能帮助你了解博客支持的 Markdown 格式。试着在管理面板中编辑它吧！
-
-*Happy Writing! ✨*`
-    },
-    {
         slug: 'build-terminal-blog',
         title: '从零搭建属于自己的终端风格博客',
         tags: ['技术', '教程', '博客'],
@@ -434,33 +311,19 @@ const ipv4 = /\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/;
 // ============ Main ============
 async function main() {
     const BASE_URL = process.env.SEED_URL || 'http://localhost:8788';
-    const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-    const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
 
     console.log('🌱 开始写入种子数据...');
     console.log(`📡 目标地址: ${BASE_URL}\n`);
 
-    // Step 1: Login
-    console.log('🔑 正在登录...');
-    let token;
-    try {
-        const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: ADMIN_USER, password: ADMIN_PASS })
-        });
-        if (!loginRes.ok) {
-            const err = await loginRes.json();
-            throw new Error(err.error || '登录失败');
-        }
-        const loginData = await loginRes.json();
-        token = loginData.token;
-        console.log(`✅ 登录成功 (${ADMIN_USER})\n`);
-    } catch (e) {
-        console.error(`❌ 登录失败: ${e.message}`);
-        console.error('请确认开发服务器已启动且凭据正确');
-        process.exit(1);
-    }
+    // 写入文章索引
+    const index = POSTS.map(p => ({
+        slug: p.slug,
+        title: p.title,
+        tags: p.tags,
+        date: p.date,
+        size: (new Blob([p.content]).size / 1024).toFixed(1) + ' KB',
+        contentLength: new Blob([p.content]).size
+    }));
 
     console.log(`📝 共 ${POSTS.length} 篇文章待写入\n`);
 
@@ -468,10 +331,7 @@ async function main() {
         try {
             const res = await fetch(`${BASE_URL}/api/post`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(post)
             });
 

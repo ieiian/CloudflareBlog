@@ -30,8 +30,8 @@
             font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
             background: var(--bg);
             color: var(--text);
-            line-height: 1.8;
-            font-size: 15px;
+            line-height: 1.7;
+            font-size: 14px;
         }
 
         /* Scanline effect */
@@ -203,13 +203,13 @@
         .post-detail {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            margin: 20px 0;
+            border-radius: 6px;
+            margin: 16px 0;
             overflow: hidden;
         }
         .post-detail .file-header {
             background: var(--bg-header);
-            padding: 10px 20px;
+            padding: 8px 16px;
             display: flex;
             justify-content: space-between;
             font-size: 0.8em;
@@ -222,21 +222,18 @@
             color: var(--purple);
         }
         .post-detail .file-body {
-            padding: 28px 32px;
+            padding: 20px;
         }
         .post-detail .file-body h2 {
             color: var(--green);
-            font-size: 1.5em;
-            margin-bottom: 14px;
-            font-weight: 700;
-            letter-spacing: 0.02em;
+            font-size: 1.3em;
+            margin-bottom: 12px;
+            font-weight: 600;
         }
         .post-detail .file-body .meta-line {
             color: var(--gray);
-            font-size: 0.85em;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border);
+            font-size: 0.8em;
+            margin-bottom: 16px;
         }
         .post-detail .file-body .meta-line .tag {
             color: var(--yellow);
@@ -246,8 +243,8 @@
         }
         .post-detail .file-body .content-text {
             color: var(--text);
-            font-size: 1em;
-            line-height: 2;
+            font-size: 0.9em;
+            line-height: 1.8;
             margin-bottom: 16px;
             white-space: pre-wrap;
         }
@@ -255,123 +252,56 @@
         /* Markdown rendered content */
         .post-content {
             color: var(--text);
-            font-size: 0.95em;
-            line-height: 2;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+            font-size: 0.9em;
+            line-height: 1.9;
         }
-        .post-content h1 {
-            color: var(--green);
-            margin: 32px 0 16px;
-            font-size: 1.5em;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--border);
-        }
-        .post-content h2 {
-            color: var(--green);
-            margin: 28px 0 14px;
-            font-size: 1.3em;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-        }
-        .post-content h3 {
-            color: var(--cyan);
-            margin: 22px 0 10px;
-            font-size: 1.1em;
-            font-weight: 600;
-        }
-        .post-content p {
-            margin-bottom: 16px;
-        }
-        .post-content a {
-            color: var(--cyan);
-            text-decoration: none;
-            border-bottom: 1px solid transparent;
-            transition: border-color 0.2s;
-        }
-        .post-content a:hover {
-            border-bottom-color: var(--green);
-            color: var(--green);
-        }
+        .post-content h1 { color: var(--green); margin: 24px 0 12px; font-size: 1.4em; }
+        .post-content h2 { color: var(--green); margin: 20px 0 10px; font-size: 1.2em; }
+        .post-content h3 { color: var(--cyan); margin: 16px 0 8px; font-size: 1.05em; }
+        .post-content p { margin-bottom: 12px; }
+        .post-content a { color: var(--cyan); text-decoration: none; }
+        .post-content a:hover { text-decoration: underline; color: var(--green); }
         .post-content code {
             background: var(--bg-header);
-            padding: 3px 7px;
-            border-radius: 4px;
-            font-size: 0.88em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
             color: var(--orange);
-            border: 1px solid rgba(48, 54, 61, 0.5);
         }
         .post-content pre {
-            background: #0a0e14;
+            background: #0d1117;
             border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 20px;
-            margin: 18px 0;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 12px 0;
             overflow-x: auto;
-            font-size: 0.88em;
-            line-height: 1.7;
+            font-size: 1em;
         }
         .post-content pre code {
             background: none;
             padding: 0;
-            border: none;
             color: var(--text);
         }
         .post-content blockquote {
             border-left: 3px solid var(--green);
-            padding: 8px 0 8px 20px;
-            margin: 18px 0;
+            padding-left: 16px;
+            margin: 12px 0;
             color: var(--gray);
-            background: rgba(0, 255, 65, 0.03);
-            border-radius: 0 4px 4px 0;
         }
         .post-content ul, .post-content ol {
-            padding-left: 28px;
-            margin-bottom: 16px;
+            padding-left: 24px;
+            margin-bottom: 12px;
         }
-        .post-content li {
-            margin-bottom: 8px;
-            line-height: 1.9;
-        }
+        .post-content li { margin-bottom: 4px; }
         .post-content img {
             max-width: 100%;
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid var(--border);
-            margin: 8px 0;
         }
         .post-content hr {
             border: none;
             border-top: 1px solid var(--border);
-            margin: 28px 0;
-        }
-        .post-content strong {
-            color: #e6edf3;
-            font-weight: 600;
-        }
-        .post-content em {
-            color: var(--purple);
-            font-style: italic;
-        }
-        .post-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
-            font-size: 0.9em;
-        }
-        .post-content th, .post-content td {
-            border: 1px solid var(--border);
-            padding: 8px 12px;
-            text-align: left;
-        }
-        .post-content th {
-            background: var(--bg-header);
-            color: var(--green);
-            font-weight: 600;
-        }
-        .post-content td {
-            color: var(--text);
+            margin: 20px 0;
         }
 
         /* Back link */
@@ -608,24 +538,10 @@
     <script>
     // ============ Simple Markdown Parser ============
     function parseMarkdown(md) {
-        // Extract and protect code blocks first
-        const codeBlocks = [];
-        md = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-            codeBlocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
-            return `%%CODEBLOCK_${codeBlocks.length - 1}%%`;
-        });
-
-        // Parse tables before other transformations
-        md = md.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (match, header, sep, body) => {
-            const headers = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
-            const rows = body.trim().split('\n').map(row => {
-                const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
-                return `<tr>${cells}</tr>`;
-            }).join('');
-            return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>\n\n`;
-        });
-
         let html = md
+            // Code blocks
+            .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+                `<pre><code>${escapeHtml(code.trim())}</code></pre>`)
             // Inline code
             .replace(/`([^`]+)`/g, '<code>$1</code>')
             // Headers
@@ -646,15 +562,10 @@
             .replace(/^---$/gm, '<hr>')
             // Unordered list
             .replace(/^- (.+)$/gm, '<li>$1</li>')
-            // Ordered list
-            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
             // Paragraphs
             .replace(/\n\n/g, '</p><p>')
             // Line breaks within paragraphs
             .replace(/\n/g, '<br>');
-
-        // Restore code blocks
-        html = html.replace(/%%CODEBLOCK_(\d+)%%/g, (_, i) => codeBlocks[parseInt(i)]);
 
         // Wrap consecutive <li> in <ul>
         html = html.replace(/((?:<li>.*?<\/li><br>?)+)/g, '<ul>$1</ul>');
@@ -670,8 +581,6 @@
         html = html.replace(/<p>(<blockquote>)/g, '$1');
         html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
         html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
-        html = html.replace(/<p>(<table>)/g, '$1');
-        html = html.replace(/(<\/table>)<\/p>/g, '$1');
 
         return html;
     }
