@@ -1,25 +1,18 @@
 name = "terminal-blog"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-11-04"
 
-# KV 命名空间绑定 - 部署时需要通过 Cloudflare Dashboard 或 CLI 创建
-# wrangler kv:namespace create BLOG_KV
-# wrangler kv:namespace create BLOG_KV --preview (用于本地开发)
-[[kv_namespaces]]
-binding = "BLOG_KV"
-id = "你的KV命名空间ID"
-preview_id = "你的预览KV命名空间ID"
-
-# 管理员帐号密码配置（可选，不设置则使用默认值）
-# 方式一：在此文件中配置（不推荐，会提交到代码仓库）
-# [vars]
-# ADMIN_USER = "admin"
-# ADMIN_PASS = "admin123"
+# ========================================
+# 部署说明
+# ========================================
+# 1. 打包 zip 时包含以下内容：
+#    - public/ 目录（静态文件）
+#    - functions/ 目录（API 函数）
+#    - 此文件不需要包含在 zip 中
 #
-# 方式二（推荐）：通过 Cloudflare Dashboard 设置环境变量
-#   Pages 项目 → Settings → Environment variables
-#   添加 ADMIN_USER 和 ADMIN_PASS
-# 或通过 wrangler secret 设置：
-#   wrangler pages secret put ADMIN_USER
-#   wrangler pages secret put ADMIN_PASS
+# 2. 在 Cloudflare Dashboard 中设置：
+#    - Build output directory: public
+#    - KV namespace binding: BLOG_KV
+#    - 环境变量（可选）: ADMIN_USER, ADMIN_PASS
 #
-# 默认帐号: admin / admin123
+# 3. 默认管理员帐号: admin / admin123
+# ========================================
