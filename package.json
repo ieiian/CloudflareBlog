@@ -1,16 +1,15 @@
 {
   "name": "terminal-blog",
   "version": "1.0.0",
-  "description": "终端风格博客 - Cloudflare Pages + KV",
+  "description": "终端风格博客 - Cloudflare Workers + KV（单文件 _worker.js）",
   "private": true,
   "scripts": {
-    "dev": "wrangler pages dev public --kv BLOG_KV --port 8788",
-    "seed": "node scripts/seed.js",
-    "build-zip": "bash scripts/build-zip.sh",
-    "build-worker": "node scripts/build-worker.js",
-    "build": "node scripts/build-worker.js && bash scripts/build-zip.sh",
-    "deploy": "wrangler pages deploy public",
-    "preview": "wrangler pages dev public --kv BLOG_KV --port 8788"
+    "build": "node scripts/build-worker.js",
+    "dev": "wrangler dev --port 8788",
+    "dev:pages": "wrangler pages dev public --kv BLOG_KV --port 8788",
+    "deploy": "wrangler deploy",
+    "deploy:pages": "wrangler pages deploy public --kv BLOG_KV",
+    "seed": "node scripts/seed.js"
   },
   "devDependencies": {
     "wrangler": "^3.0.0"

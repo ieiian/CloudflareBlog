@@ -303,30 +303,3 @@ function handleAPI(request, env, pathname) {
 
     return jsonResponse({ error: 'API 路由不存在' }, 404);
 }
-
-// ==================== 主入口 ====================
-export default {
-    async fetch(request, env, ctx) {
-        var url = new URL(request.url);
-        var pathname = url.pathname;
-
-        // API 路由
-        if (pathname.startsWith('/api/')) {
-            try {
-                return await handleAPI(request, env, pathname);
-            } catch (err) {
-                return jsonResponse({ error: err.message }, 500);
-            }
-        }
-
-        // 静态文件：通过 ASSETS 提供（Pages 模式）
-        if (env.ASSETS) {
-            var response = await env.ASSETS.fetch(request);
-            if (response.status !== 404) return response;
-            // SPA fallback - 返回首页
-            return env.ASSETS.fetch(new Request(new URL('/', url).href));
-        }
-
-        return new Response('Not Found', { status: 404 });
-    }
-};

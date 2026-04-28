@@ -1,18 +1,8 @@
 name = "terminal-blog"
+main = "_worker.js"
 compatibility_date = "2025-11-04"
+keep_vars = true
 
-# ========================================
-# 部署说明
-# ========================================
-# 1. 打包 zip 时包含以下内容：
-#    - public/ 目录（静态文件）
-#    - functions/ 目录（API 函数）
-#    - 此文件不需要包含在 zip 中
-#
-# 2. 在 Cloudflare Dashboard 中设置：
-#    - Build output directory: public
-#    - KV namespace binding: BLOG_KV
-#    - 环境变量（可选）: ADMIN_USER, ADMIN_PASS
-#
-# 3. 默认管理员帐号: admin / admin123
-# ========================================
+[[kv_namespaces]]
+binding = "BLOG_KV"
+id = "placeholder"
