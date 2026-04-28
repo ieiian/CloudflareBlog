@@ -1332,7 +1332,11 @@ async function handlePostsList(env, url) {
         posts = posts.filter(function(p) { return p.tags && p.tags.indexOf(tag) !== -1; });
     }
 
-    posts.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+    posts.sort(function(a, b) {
+        var ta = b.createdAt || b.date;
+        var tb = a.createdAt || a.date;
+        return new Date(ta) - new Date(tb);
+    });
 
     const totalPosts = posts.length;
     const totalPages = Math.max(1, Math.ceil(totalPosts / limit));
@@ -1377,7 +1381,8 @@ async function handlePostCreate(env, request) {
         return jsonResponse({ error: 'slug、标题和内容不能为空' }, 400);
     }
 
-    const date = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    const date = now.split('T')[0];
     const contentLength = new Blob([content]).size;
     const size = (contentLength / 1024).toFixed(1) + ' KB';
     const readTime = Math.max(1, Math.ceil(content.length / 500));
@@ -1392,8 +1397,10 @@ async function handlePostCreate(env, request) {
 
     if (existingIdx >= 0) {
         indexEntry.date = indexData[existingIdx].date || date;
+        indexEntry.createdAt = indexData[existingIdx].createdAt || now;
         indexData[existingIdx] = indexEntry;
     } else {
+        indexEntry.createdAt = now;
         indexData.push(indexEntry);
     }
 
