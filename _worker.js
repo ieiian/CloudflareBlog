@@ -283,6 +283,30 @@ const HTML_CONTENT = `<!DOCTYPE html>
             overflow-x: auto;
             font-size: 1em;
         }
+
+        /* Dark scrollbar */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) var(--bg-card);
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-dim);
+        }
+        ::-webkit-scrollbar-corner {
+            background: var(--bg-card);
+        }
         .post-content pre code {
             background: none;
             padding: 0;
@@ -511,9 +535,74 @@ const HTML_CONTENT = `<!DOCTYPE html>
         .nav-links a:hover, .nav-links a.active {
             color: var(--green);
         }
+
+        /* Toast notification */
+        #toastContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .toast-bar {
+            width: 100%;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 20px;
+            text-align: center;
+            color: var(--gray);
+            font-size: 0.85em;
+            pointer-events: auto;
+            animation: toastIn 0.3s ease;
+        }
+        .toast-bar.fade-out {
+            animation: toastOut 1s ease forwards;
+        }
+        .toast-bar .toast-success { color: var(--green-dim); }
+        .toast-bar .toast-error { color: var(--red); }
+        .toast-bar .toast-info { color: var(--cyan); }
+        .toast-bar .toast-actions {
+            margin-top: 8px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+        .toast-bar .toast-actions button {
+            background: var(--bg);
+            color: var(--gray);
+            border: 1px solid var(--border);
+            padding: 4px 16px;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toast-bar .toast-actions button:hover {
+            border-color: var(--green);
+            color: var(--green);
+        }
+        .toast-bar .toast-actions button.confirm-btn:hover {
+            border-color: var(--red);
+            color: var(--red);
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
+    <div id="toastContainer"></div>
+
     <div class="terminal">
         <div class="title-bar">
             <div class="dot red" onclick="navigate('home')"></div>
@@ -542,6 +631,54 @@ const HTML_CONTENT = `<!DOCTYPE html>
     </div>
 
     <script>
+    // ============ Toast Notification ============
+    function showToast(message, type, actions) {
+        var container = document.getElementById('toastContainer');
+        var toast = document.createElement('div');
+        toast.className = 'toast-bar';
+
+        var typeClass = type === 'success' ? 'toast-success' :
+                        type === 'error' ? 'toast-error' :
+                        type === 'info' ? 'toast-info' : '';
+
+        var html = '<div class="' + typeClass + '">' + message + '</div>';
+
+        if (actions && actions.length > 0) {
+            html += '<div class="toast-actions">';
+            actions.forEach(function(act, i) {
+                var cls = act.confirm ? 'confirm-btn' : '';
+                html += '<button class="' + cls + '" data-idx="' + i + '">' + act.label + '</button>';
+            });
+            html += '</div>';
+        }
+
+        toast.innerHTML = html;
+        container.appendChild(toast);
+
+        if (actions && actions.length > 0) {
+            var btns = toast.querySelectorAll('.toast-actions button');
+            btns.forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var idx = parseInt(this.getAttribute('data-idx'));
+                    removeToast(toast);
+                    if (actions[idx] && actions[idx].action) actions[idx].action();
+                });
+            });
+        } else {
+            setTimeout(function() {
+                removeToast(toast);
+            }, 3000);
+        }
+    }
+
+    function removeToast(toast) {
+        if (!toast || !toast.parentNode) return;
+        toast.classList.add('fade-out');
+        setTimeout(function() {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 1000);
+    }
+
     // ============ Simple Markdown Parser ============
     function parseMarkdown(md) {
         let html = md
@@ -626,6 +763,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
             currentView = 'admin';
         }
         render();
+        updateUrl();
         window.scrollTo(0, 0);
     }
 
@@ -686,9 +824,8 @@ const HTML_CONTENT = `<!DOCTYPE html>
     async function doLogin() {
         const username = document.getElementById('loginUser').value.trim();
         const password = document.getElementById('loginPass').value;
-        const msgEl = document.getElementById('loginMsg');
         if (!username || !password) {
-            msgEl.innerHTML = '<p class="error-text">[ERROR] 请输入用户名和密码</p>';
+            showToast('[ERROR] 请输入用户名和密码', 'error');
             return;
         }
         try {
@@ -704,9 +841,10 @@ const HTML_CONTENT = `<!DOCTYPE html>
             authUser = result.username;
             localStorage.setItem('blog_token', authToken);
             localStorage.setItem('blog_user', authUser);
+            showToast('✅ 登录成功', 'success');
             render();
         } catch (err) {
-            msgEl.innerHTML = \`<p class="error-text">[ERROR] \${escapeHtml(err.message)}</p>\`;
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
     }
 
@@ -918,16 +1056,24 @@ const HTML_CONTENT = `<!DOCTYPE html>
         if (!listEl) return;
         listEl.innerHTML = '<span class="loading"></span>';
         try {
-            const posts = await apiGet(\`/posts?page=\${adminPage}&limit=\${POSTS_PER_PAGE}\`);
+            const posts = await apiGet(\`/posts?page=\${adminPage}&limit=\${POSTS_PER_PAGE}&admin=true\`);
             if (posts.posts.length === 0) {
                 listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';
             } else {
-                let html = posts.posts.map(p =>
-                    \`<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5);">
-                        <a style="color: var(--cyan); cursor: pointer; text-decoration: none;" onclick="editPost('\${escapeHtml(p.slug)}')">\${escapeHtml(p.title)}</a>
-                        <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">\${p.date || ''} · \${p.slug}</span>
-                    </div>\`
-                ).join('');
+                let html = posts.posts.map(p => {
+                    const btnLabel = p.hidden ? '公开' : '隐藏';
+                    const btnColor = p.hidden ? 'var(--green)' : 'var(--red)';
+                    const hiddenTag = p.hidden ? '<span style="color: var(--yellow); font-size: 0.75em;">[隐藏中]</span> ' : '';
+                    const idTag = p.id ? \`<span style="color: var(--purple); font-size: 0.75em;">#\${p.id}</span> \` : '';
+                    return \`<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5); display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            \${hiddenTag}\${idTag}
+                            <a style="color: var(--cyan); cursor: pointer; text-decoration: none;" onclick="editPost('\${escapeHtml(p.slug)}')">\${escapeHtml(p.title)}</a>
+                            <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">\${p.date || ''} · \${p.slug}</span>
+                        </div>
+                        <button class="admin-btn" style="padding: 4px 12px; font-size: 0.75em; color: \${btnColor}; border-color: \${btnColor}; flex-shrink: 0;" onclick="toggleVisibility('\${escapeHtml(p.slug)}')">\${btnLabel}</button>
+                    </div>\`;
+                }).join('');
                 if (posts.totalPages > 1) {
                     html += renderPagination(posts.page, posts.totalPages).replace(/goPage/g, 'goAdminPage');
                 }
@@ -939,29 +1085,43 @@ const HTML_CONTENT = `<!DOCTYPE html>
     }
 
     async function renderPost(body) {
-        const post = await apiGet(\`/post/\${currentSlug}\`);
+        // Check if currentSlug is a numeric ID or a slug
+        var post;
+        if (/^\\d+$/.test(currentSlug)) {
+            post = await apiGet(\`/post-by-id/\${currentSlug}\`);
+        } else {
+            post = await apiGet(\`/post/\${currentSlug}\`);
+        }
         setTitle(\`\${post.title} ~ blog\`);
         document.getElementById('statusMode').textContent = 'INSERT';
 
         const tags = (post.tags || []).map(t => \`<span class="tag">[\${escapeHtml(t)}]</span>\`).join(' · ');
+        const postId = post.id || '';
+        const shareUrl = postId ? \`\${window.location.origin}/\${postId}\` : '';
+        const slugDisplay = post.slug || currentSlug;
+
+        // Update browser URL to /<ID>/
+        updatePostUrl(postId);
 
         body.innerHTML = \`
-            \${prompt('hacker', 'blog', \`cat ./posts/\${currentSlug}.md\`)}
+            \${prompt('hacker', 'blog', \`cat ./posts/\${slugDisplay}.md\`)}
 
             <div class="nav-links">
                 <a onclick="navigate('home')">[← 返回首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
+                \${shareUrl ? \`<a onclick="navigator.clipboard.writeText('\${shareUrl}'); this.textContent='[✓ 已复制链接]'; setTimeout(()=>this.textContent='[📋 复制分享链接]',1500)" style="color: var(--yellow);">[📋 复制分享链接]</a>\` : ''}
             </div>
 
             <div class="post-detail">
                 <div class="file-header">
-                    <span class="filename">\${escapeHtml(currentSlug)}.md</span>
-                    <span class="lang">markdown</span>
+                    <span class="filename">\${escapeHtml(slugDisplay)}.md</span>
+                    <span class="lang">\${postId ? 'ID: ' + postId : 'markdown'}</span>
                 </div>
                 <div class="file-body">
                     <h2 class="glow"># \${escapeHtml(post.title)}</h2>
                     <div class="meta-line">
                         \${tags}\${tags ? ' · ' : ''}发表于 <span class="date-highlight">\${post.date || 'N/A'}</span> · 阅读约 \${post.readTime || '?'} 分钟
+                        \${shareUrl ? \` · <span style="color: var(--purple);">🔗 \${shareUrl}</span>\` : ''}
                     </div>
                     <div class="post-content">
                         \${post.htmlContent || \`<p class="content-text">\${escapeHtml(post.content || '')}</p>\`}
@@ -1072,18 +1232,16 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
                 <div class="admin-section" style="max-width: 400px;">
                     <label>用户名</label>
-                    <input type="text" id="loginUser" placeholder="admin" 
+                    <input type="text" id="loginUser" placeholder="admin"
                            onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()" />
 
                     <label>密码</label>
-                    <input type="password" id="loginPass" placeholder="••••••••" 
+                    <input type="password" id="loginPass" placeholder="••••••••"
                            onkeydown="if(event.key==='Enter') doLogin()" />
 
                     <div style="margin-top: 12px;">
                         <button class="admin-btn" onclick="doLogin()">🔑 登录</button>
                     </div>
-
-                    <div id="loginMsg" style="margin-top: 12px;"></div>
                 </div>
 
                 \${separator()}
@@ -1129,11 +1287,16 @@ const HTML_CONTENT = `<!DOCTYPE html>
                     <button class="admin-btn" onclick="savePost()">💾 发布文章</button>
                     <button class="admin-btn danger" onclick="deletePost()">🗑️ 删除文章</button>
                 </div>
-
-                <div id="adminMsg" style="margin-top: 12px;"></div>
             </div>
 
-            \${separator('已有文章')}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0;">
+                <div style="color: var(--gray-dim); font-size: 0.85em;"># \${'─'.repeat(4)} 已有文章 \${'─'.repeat(30)}</div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="admin-btn" style="padding: 4px 14px; font-size: 0.75em;" onclick="exportPosts()">📤 导出全部</button>
+                    <button class="admin-btn" style="padding: 4px 14px; font-size: 0.75em; color: var(--cyan); border-color: var(--cyan);" onclick="document.getElementById('importFile').click()">📥 导入</button>
+                    <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importPosts(event)" />
+                </div>
+            </div>
 
             <div id="adminPostList">
                 <span class="loading"></span>
@@ -1156,10 +1319,9 @@ const HTML_CONTENT = `<!DOCTYPE html>
         const title = document.getElementById('adminTitle').value.trim();
         const tags = document.getElementById('adminTags').value.trim();
         const content = document.getElementById('adminContent').value;
-        const msgEl = document.getElementById('adminMsg');
 
         if (!slug || !title || !content) {
-            msgEl.innerHTML = '<p class="error-text">[ERROR] Slug、标题和内容不能为空</p>';
+            showToast('[ERROR] Slug、标题和内容不能为空', 'error');
             return;
         }
 
@@ -1170,31 +1332,35 @@ const HTML_CONTENT = `<!DOCTYPE html>
                 tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
                 content
             });
-            msgEl.innerHTML = \`<p style="color: var(--green);">✅ \${result.message || '保存成功'}</p>\`;
+            showToast('✅ ' + (result.message || '保存成功'), 'success');
             // Refresh admin post list
             navigate('admin');
         } catch (err) {
-            msgEl.innerHTML = \`<p class="error-text">[ERROR] \${escapeHtml(err.message)}</p>\`;
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
     }
 
     async function deletePost() {
         const slug = document.getElementById('adminSlug').value.trim();
-        const msgEl = document.getElementById('adminMsg');
 
         if (!slug) {
-            msgEl.innerHTML = '<p class="error-text">[ERROR] 请输入要删除的 Slug</p>';
+            showToast('[ERROR] 请输入要删除的 Slug', 'error');
             return;
         }
 
-        if (!confirm(\`确认删除文章 "\${slug}" ?\`)) return;
+        showToast('确认删除文章 "' + escapeHtml(slug) + '"？', 'info', [
+            { label: '确认', confirm: true, action: function() { doDeletePost(slug); } },
+            { label: '取消', action: function() {} }
+        ]);
+    }
 
+    async function doDeletePost(slug) {
         try {
             const result = await apiDelete(\`/post/\${slug}\`);
-            msgEl.innerHTML = \`<p style="color: var(--green);">✅ \${result.message || '删除成功'}</p>\`;
+            showToast('✅ ' + (result.message || '删除成功'), 'success');
             navigate('admin');
         } catch (err) {
-            msgEl.innerHTML = \`<p class="error-text">[ERROR] \${escapeHtml(err.message)}</p>\`;
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
     }
 
@@ -1205,19 +1371,125 @@ const HTML_CONTENT = `<!DOCTYPE html>
             document.getElementById('adminTitle').value = post.title || '';
             document.getElementById('adminTags').value = (post.tags || []).join(', ');
             document.getElementById('adminContent').value = post.content || '';
-            document.getElementById('adminMsg').innerHTML = \`<p style="color: var(--cyan);">📝 已加载文章: \${escapeHtml(post.title)}</p>\`;
+            showToast('📝 已加载文章: ' + escapeHtml(post.title), 'info');
             window.scrollTo(0, 0);
         } catch (err) {
-            document.getElementById('adminMsg').innerHTML = \`<p class="error-text">[ERROR] \${escapeHtml(err.message)}</p>\`;
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+    }
+
+    // ============ Toggle Visibility ============
+    async function toggleVisibility(slug) {
+        try {
+            const result = await apiPost(\`/post/\${slug}/toggle\`, {});
+            showToast('✅ 状态已切换', 'success');
+            loadAdminPosts();
+        } catch (err) {
+            showToast('[ERROR] ' + err.message, 'error');
+        }
+    }
+
+
+    // ============ 导出/导入 ============
+    async function exportPosts() {
+        try {
+            var headers = { 'Content-Type': 'application/json' };
+            if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+            var res = await fetch('/api/export', { headers: headers });
+            if (!res.ok) {
+                var err = await res.json().catch(function() { return { error: '导出失败' }; });
+                throw new Error(err.error || '导出失败');
+            }
+            var blob = await res.blob();
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'blog-export-' + new Date().toISOString().split('T')[0] + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('✅ 导出成功', 'success');
+        } catch (err) {
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+    }
+
+    async function importPosts(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+
+        try {
+            var text = await file.text();
+            var data = JSON.parse(text);
+            if (!data.posts || !Array.isArray(data.posts)) {
+                throw new Error('无效的导出文件格式');
+            }
+
+            showToast('确认导入？已有相同 slug 的文章将被覆盖。', 'info', [
+                { label: '确认', confirm: true, action: function() { doImport(data); } },
+                { label: '取消', action: function() {} }
+            ]);
+        } catch (err) {
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+        event.target.value = '';
+    }
+
+    async function doImport(data) {
+        try {
+            var headers = { 'Content-Type': 'application/json' };
+            if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+            var res = await fetch('/api/import', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+            var result = await res.json();
+            if (!res.ok) {
+                throw new Error(result.error || '导入失败');
+            }
+            showToast('✅ ' + escapeHtml(result.message) + ' (成功: ' + result.imported + ', 失败: ' + result.failed + ', 总计: ' + result.total + ')', 'success');
+            loadAdminPosts();
+        } catch (err) {
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+    }
+
+    // ============ URL 管理 ============
+    function updateUrl() {
+        var newUrl = '/';
+        if (currentView === 'post' && currentSlug) {
+            // Will be updated after post loads when we have the ID
+        } else if (currentView === 'tag' && currentTag) {
+            newUrl = '/?view=tag&tag=' + encodeURIComponent(currentTag);
+        } else if (currentView === 'tags') {
+            newUrl = '/?view=tags';
+        } else if (currentView === 'admin') {
+            newUrl = '/?view=admin';
+        }
+        history.pushState(null, '', newUrl);
+    }
+
+    function updatePostUrl(postId) {
+        if (postId) {
+            history.replaceState(null, '', '/' + postId + '/');
         }
     }
 
     // ============ Init ============
+    // Handle direct URL: /<ID> (numeric)
+    (function() {
+        var pathMatch = window.location.pathname.match(/^\\/(\\d{5,})\\/?$/);
+        if (pathMatch) {
+            currentView = 'post';
+            currentSlug = pathMatch[1];
+        }
+    })();
     render();
     </script>
 </body>
-</html>
-`;
+</html>`;
 
 // ============================================================
 // Terminal Blog - Cloudflare Pages Worker (API routes only)
@@ -1324,12 +1596,18 @@ async function handlePostsList(env, url) {
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const tag = url.searchParams.get('tag') || '';
+    const admin = url.searchParams.get('admin') === 'true';
 
     const indexData = await env.BLOG_KV.get('post:index', { type: 'json' });
     let posts = indexData || [];
 
     if (tag) {
         posts = posts.filter(function(p) { return p.tags && p.tags.indexOf(tag) !== -1; });
+    }
+
+    // Public view: filter out hidden posts
+    if (!admin) {
+        posts = posts.filter(function(p) { return !p.hidden; });
     }
 
     posts.sort(function(a, b) {
@@ -1343,11 +1621,13 @@ async function handlePostsList(env, url) {
     const start = (page - 1) * limit;
     const paginatedPosts = posts.slice(start, start + limit).map(function(p) {
         return {
+            id: p.id,
             slug: p.slug,
             title: p.title,
             date: p.date,
             size: p.size || ((p.contentLength || 0) / 1024).toFixed(1) + ' KB',
-            tags: p.tags || []
+            tags: p.tags || [],
+            hidden: !!p.hidden
         };
     });
 
@@ -1365,6 +1645,51 @@ async function handlePostGet(env, slug) {
         return jsonResponse({ error: '文章不存在' }, 404);
     }
     return jsonResponse(postData);
+}
+
+async function handlePostGetById(env, id) {
+    var slug = await env.BLOG_KV.get('post:id:' + id);
+    if (!slug) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+    var postData = await env.BLOG_KV.get('post:' + slug, { type: 'json' });
+    if (!postData) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+    if (postData.hidden) {
+        return jsonResponse({ error: '文章未公开' }, 404);
+    }
+    return jsonResponse(postData);
+}
+
+async function handleToggleVisibility(env, request, slug) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+    const idx = indexData.findIndex(function(p) { return p.slug === slug; });
+    if (idx < 0) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+
+    const wasHidden = !!indexData[idx].hidden;
+    indexData[idx].hidden = !wasHidden;
+
+    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
+
+    var postData = await env.BLOG_KV.get('post:' + slug, { type: 'json' });
+    if (postData) {
+        postData.hidden = !wasHidden;
+        await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
+    }
+
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
+    return jsonResponse({
+        message: wasHidden ? '文章已公开' : '文章已隐藏',
+        slug: slug,
+        hidden: !wasHidden
+    });
 }
 
 async function handlePostCreate(env, request) {
@@ -1388,12 +1713,32 @@ async function handlePostCreate(env, request) {
     const readTime = Math.max(1, Math.ceil(content.length / 500));
     const htmlContent = markdownToHtml(content);
 
-    const postData = { slug: slug, title: title, tags: tags || [], content: content, htmlContent: htmlContent, date: date, readTime: readTime, size: size, contentLength: contentLength };
-    await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
-
     const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
     const existingIdx = indexData.findIndex(function(p) { return p.slug === slug; });
-    const indexEntry = { slug: slug, title: title, tags: tags || [], date: date, size: size, contentLength: contentLength };
+
+    // Auto ID: only assign for new posts
+    var postId = null;
+    if (existingIdx >= 0) {
+        postId = indexData[existingIdx].id || null;
+    }
+    if (!postId) {
+        var nextIdRaw = await env.BLOG_KV.get('post:nextId');
+        var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
+        postId = nextId;
+        await env.BLOG_KV.put('post:nextId', String(nextId + 1));
+        await env.BLOG_KV.put('post:id:' + postId, slug);
+    }
+
+    // New posts default to hidden
+    var isHidden = true;
+    if (existingIdx >= 0) {
+        isHidden = !!indexData[existingIdx].hidden;
+    }
+
+    const postData = { id: postId, slug: slug, title: title, tags: tags || [], content: content, htmlContent: htmlContent, date: date, readTime: readTime, size: size, contentLength: contentLength, hidden: isHidden };
+    await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
+
+    const indexEntry = { id: postId, slug: slug, title: title, tags: tags || [], date: date, size: size, contentLength: contentLength, hidden: isHidden };
 
     if (existingIdx >= 0) {
         indexEntry.date = indexData[existingIdx].date || date;
@@ -1405,9 +1750,9 @@ async function handlePostCreate(env, request) {
     }
 
     await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-    await updateTagIndex(env, indexData);
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
 
-    return jsonResponse({ message: '文章保存成功', slug: slug });
+    return jsonResponse({ message: '文章保存成功', slug: slug, id: postId });
 }
 
 async function handlePostDelete(env, request, slug) {
@@ -1481,6 +1826,142 @@ async function handleVerify(env, request) {
     return jsonResponse({ valid: true, username: session.username });
 }
 
+
+// ==================== 导出/导入 ====================
+
+async function handleExport(env, request) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+    var posts = [];
+
+    for (var i = 0; i < indexData.length; i++) {
+        var meta = indexData[i];
+        var postData = await env.BLOG_KV.get('post:' + meta.slug, { type: 'json' });
+        if (postData) {
+            posts.push({
+                slug: postData.slug,
+                title: postData.title,
+                tags: postData.tags || [],
+                content: postData.content || '',
+                date: postData.date || meta.date,
+                hidden: !!postData.hidden,
+                id: postData.id || meta.id || null
+            });
+        }
+    }
+
+    var exportData = {
+        version: '1.0',
+        exportDate: new Date().toISOString(),
+        posts: posts
+    };
+
+    return new Response(JSON.stringify(exportData, null, 2), {
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Disposition': 'attachment; filename="blog-export.json"'
+        }
+    });
+}
+
+async function handleImport(env, request) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    var data;
+    try {
+        data = await request.json();
+    } catch (e) {
+        return jsonResponse({ error: '无效的 JSON 数据' }, 400);
+    }
+
+    if (!data.posts || !Array.isArray(data.posts)) {
+        return jsonResponse({ error: '数据格式错误，需要 posts 数组' }, 400);
+    }
+
+    var imported = 0, skipped = 0, failed = 0;
+    var indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+
+    for (var i = 0; i < data.posts.length; i++) {
+        var post = data.posts[i];
+        if (!post.slug || !post.title || !post.content) {
+            failed++;
+            continue;
+        }
+
+        var now = new Date().toISOString();
+        var contentLength = new Blob([post.content]).size;
+        var size = (contentLength / 1024).toFixed(1) + ' KB';
+        var readTime = Math.max(1, Math.ceil(post.content.length / 500));
+        var htmlContent = markdownToHtml(post.content);
+
+        var existingIdx = indexData.findIndex(function(p) { return p.slug === post.slug; });
+
+        var postId = post.id || null;
+        if (existingIdx >= 0) {
+            postId = indexData[existingIdx].id || postId;
+        }
+        if (!postId) {
+            var nextIdRaw = await env.BLOG_KV.get('post:nextId');
+            var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
+            postId = nextId;
+            await env.BLOG_KV.put('post:nextId', String(nextId + 1));
+        }
+        await env.BLOG_KV.put('post:id:' + postId, post.slug);
+
+        var isHidden = (existingIdx >= 0) ? !!indexData[existingIdx].hidden : !!post.hidden;
+        var postDate = (existingIdx >= 0) ? (indexData[existingIdx].date || post.date || now.split('T')[0]) : (post.date || now.split('T')[0]);
+
+        var postData = {
+            id: postId,
+            slug: post.slug,
+            title: post.title,
+            tags: post.tags || [],
+            content: post.content,
+            htmlContent: htmlContent,
+            date: postDate,
+            readTime: readTime,
+            size: size,
+            contentLength: contentLength,
+            hidden: isHidden
+        };
+        await env.BLOG_KV.put('post:' + post.slug, JSON.stringify(postData));
+
+        var indexEntry = {
+            id: postId,
+            slug: post.slug,
+            title: post.title,
+            tags: post.tags || [],
+            date: postDate,
+            size: size,
+            contentLength: contentLength,
+            hidden: isHidden
+        };
+
+        if (existingIdx >= 0) {
+            indexEntry.createdAt = indexData[existingIdx].createdAt || now;
+            indexData[existingIdx] = indexEntry;
+        } else {
+            indexEntry.createdAt = now;
+            indexData.push(indexEntry);
+        }
+        imported++;
+    }
+
+    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
+    return jsonResponse({
+        message: '导入完成',
+        imported: imported,
+        skipped: skipped,
+        failed: failed,
+        total: data.posts.length
+    });
+}
+
 // ==================== 路由分发 ====================
 function handleAPI(request, env, pathname) {
     const url = new URL(request.url);
@@ -1529,6 +2010,28 @@ function handleAPI(request, env, pathname) {
         }
     }
 
+    // Post by ID: /api/post-by-id/:id
+    var postIdMatch = pathname.match(/^\/api\/post-by-id\/(\d+)$/);
+    if (postIdMatch && method === 'GET') {
+        return handlePostGetById(env, postIdMatch[1]);
+    }
+
+    // Toggle visibility: /api/post/:slug/toggle
+    var toggleMatch = pathname.match(/^\/api\/post\/([^/]+)\/toggle$/);
+    if (toggleMatch && method === 'POST') {
+        return handleToggleVisibility(env, request, toggleMatch[1]);
+    }
+
+    // Export
+    if (pathname === '/api/export' && method === 'GET') {
+        return handleExport(env, request);
+    }
+
+    // Import
+    if (pathname === '/api/import' && method === 'POST') {
+        return handleImport(env, request);
+    }
+
     return jsonResponse({ error: 'API 路由不存在' }, 404);
 }
 
@@ -1546,6 +2049,16 @@ export default {
             } catch (err) {
                 return jsonResponse({ error: err.message }, 500);
             }
+        }
+
+        // 短 URL 路由：/<数字ID> → 返回 SPA 页面，由前端处理
+        if (/^\/\d{5,}\/?$/.test(pathname)) {
+            if (env.ASSETS) {
+                return env.ASSETS.fetch(new Request(new URL('/', url).href));
+            }
+            return new Response(HTML_CONTENT, {
+                headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+            });
         }
 
         // Pages 部署：优先使用 ASSETS 绑定提供静态文件

@@ -59,6 +59,16 @@ export default {
             }
         }
 
+        // 短 URL 路由：/<数字ID> → 返回 SPA 页面，由前端处理
+        if (/^\\\/\\d{5,}\\\/?$/.test(pathname)) {
+            if (env.ASSETS) {
+                return env.ASSETS.fetch(new Request(new URL('/', url).href));
+            }
+            return new Response(HTML_CONTENT, {
+                headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+            });
+        }
+
         // Pages 部署：优先使用 ASSETS 绑定提供静态文件
         if (env.ASSETS) {
             var response = await env.ASSETS.fetch(request);

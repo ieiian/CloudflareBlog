@@ -103,12 +103,18 @@ async function handlePostsList(env, url) {
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const tag = url.searchParams.get('tag') || '';
+    const admin = url.searchParams.get('admin') === 'true';
 
     const indexData = await env.BLOG_KV.get('post:index', { type: 'json' });
     let posts = indexData || [];
 
     if (tag) {
         posts = posts.filter(function(p) { return p.tags && p.tags.indexOf(tag) !== -1; });
+    }
+
+    // Public view: filter out hidden posts
+    if (!admin) {
+        posts = posts.filter(function(p) { return !p.hidden; });
     }
 
     posts.sort(function(a, b) {
@@ -122,11 +128,13 @@ async function handlePostsList(env, url) {
     const start = (page - 1) * limit;
     const paginatedPosts = posts.slice(start, start + limit).map(function(p) {
         return {
+            id: p.id,
             slug: p.slug,
             title: p.title,
             date: p.date,
             size: p.size || ((p.contentLength || 0) / 1024).toFixed(1) + ' KB',
-            tags: p.tags || []
+            tags: p.tags || [],
+            hidden: !!p.hidden
         };
     });
 
@@ -144,6 +152,51 @@ async function handlePostGet(env, slug) {
         return jsonResponse({ error: '文章不存在' }, 404);
     }
     return jsonResponse(postData);
+}
+
+async function handlePostGetById(env, id) {
+    var slug = await env.BLOG_KV.get('post:id:' + id);
+    if (!slug) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+    var postData = await env.BLOG_KV.get('post:' + slug, { type: 'json' });
+    if (!postData) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+    if (postData.hidden) {
+        return jsonResponse({ error: '文章未公开' }, 404);
+    }
+    return jsonResponse(postData);
+}
+
+async function handleToggleVisibility(env, request, slug) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+    const idx = indexData.findIndex(function(p) { return p.slug === slug; });
+    if (idx < 0) {
+        return jsonResponse({ error: '文章不存在' }, 404);
+    }
+
+    const wasHidden = !!indexData[idx].hidden;
+    indexData[idx].hidden = !wasHidden;
+
+    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
+
+    var postData = await env.BLOG_KV.get('post:' + slug, { type: 'json' });
+    if (postData) {
+        postData.hidden = !wasHidden;
+        await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
+    }
+
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
+    return jsonResponse({
+        message: wasHidden ? '文章已公开' : '文章已隐藏',
+        slug: slug,
+        hidden: !wasHidden
+    });
 }
 
 async function handlePostCreate(env, request) {
@@ -167,12 +220,32 @@ async function handlePostCreate(env, request) {
     const readTime = Math.max(1, Math.ceil(content.length / 500));
     const htmlContent = markdownToHtml(content);
 
-    const postData = { slug: slug, title: title, tags: tags || [], content: content, htmlContent: htmlContent, date: date, readTime: readTime, size: size, contentLength: contentLength };
-    await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
-
     const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
     const existingIdx = indexData.findIndex(function(p) { return p.slug === slug; });
-    const indexEntry = { slug: slug, title: title, tags: tags || [], date: date, size: size, contentLength: contentLength };
+
+    // Auto ID: only assign for new posts
+    var postId = null;
+    if (existingIdx >= 0) {
+        postId = indexData[existingIdx].id || null;
+    }
+    if (!postId) {
+        var nextIdRaw = await env.BLOG_KV.get('post:nextId');
+        var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
+        postId = nextId;
+        await env.BLOG_KV.put('post:nextId', String(nextId + 1));
+        await env.BLOG_KV.put('post:id:' + postId, slug);
+    }
+
+    // New posts default to hidden
+    var isHidden = true;
+    if (existingIdx >= 0) {
+        isHidden = !!indexData[existingIdx].hidden;
+    }
+
+    const postData = { id: postId, slug: slug, title: title, tags: tags || [], content: content, htmlContent: htmlContent, date: date, readTime: readTime, size: size, contentLength: contentLength, hidden: isHidden };
+    await env.BLOG_KV.put('post:' + slug, JSON.stringify(postData));
+
+    const indexEntry = { id: postId, slug: slug, title: title, tags: tags || [], date: date, size: size, contentLength: contentLength, hidden: isHidden };
 
     if (existingIdx >= 0) {
         indexEntry.date = indexData[existingIdx].date || date;
@@ -184,9 +257,9 @@ async function handlePostCreate(env, request) {
     }
 
     await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-    await updateTagIndex(env, indexData);
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
 
-    return jsonResponse({ message: '文章保存成功', slug: slug });
+    return jsonResponse({ message: '文章保存成功', slug: slug, id: postId });
 }
 
 async function handlePostDelete(env, request, slug) {
@@ -260,6 +333,142 @@ async function handleVerify(env, request) {
     return jsonResponse({ valid: true, username: session.username });
 }
 
+
+// ==================== 导出/导入 ====================
+
+async function handleExport(env, request) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+    var posts = [];
+
+    for (var i = 0; i < indexData.length; i++) {
+        var meta = indexData[i];
+        var postData = await env.BLOG_KV.get('post:' + meta.slug, { type: 'json' });
+        if (postData) {
+            posts.push({
+                slug: postData.slug,
+                title: postData.title,
+                tags: postData.tags || [],
+                content: postData.content || '',
+                date: postData.date || meta.date,
+                hidden: !!postData.hidden,
+                id: postData.id || meta.id || null
+            });
+        }
+    }
+
+    var exportData = {
+        version: '1.0',
+        exportDate: new Date().toISOString(),
+        posts: posts
+    };
+
+    return new Response(JSON.stringify(exportData, null, 2), {
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Disposition': 'attachment; filename="blog-export.json"'
+        }
+    });
+}
+
+async function handleImport(env, request) {
+    const authError = await verifyAuth(env, request);
+    if (authError) return authError;
+
+    var data;
+    try {
+        data = await request.json();
+    } catch (e) {
+        return jsonResponse({ error: '无效的 JSON 数据' }, 400);
+    }
+
+    if (!data.posts || !Array.isArray(data.posts)) {
+        return jsonResponse({ error: '数据格式错误，需要 posts 数组' }, 400);
+    }
+
+    var imported = 0, skipped = 0, failed = 0;
+    var indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
+
+    for (var i = 0; i < data.posts.length; i++) {
+        var post = data.posts[i];
+        if (!post.slug || !post.title || !post.content) {
+            failed++;
+            continue;
+        }
+
+        var now = new Date().toISOString();
+        var contentLength = new Blob([post.content]).size;
+        var size = (contentLength / 1024).toFixed(1) + ' KB';
+        var readTime = Math.max(1, Math.ceil(post.content.length / 500));
+        var htmlContent = markdownToHtml(post.content);
+
+        var existingIdx = indexData.findIndex(function(p) { return p.slug === post.slug; });
+
+        var postId = post.id || null;
+        if (existingIdx >= 0) {
+            postId = indexData[existingIdx].id || postId;
+        }
+        if (!postId) {
+            var nextIdRaw = await env.BLOG_KV.get('post:nextId');
+            var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
+            postId = nextId;
+            await env.BLOG_KV.put('post:nextId', String(nextId + 1));
+        }
+        await env.BLOG_KV.put('post:id:' + postId, post.slug);
+
+        var isHidden = (existingIdx >= 0) ? !!indexData[existingIdx].hidden : !!post.hidden;
+        var postDate = (existingIdx >= 0) ? (indexData[existingIdx].date || post.date || now.split('T')[0]) : (post.date || now.split('T')[0]);
+
+        var postData = {
+            id: postId,
+            slug: post.slug,
+            title: post.title,
+            tags: post.tags || [],
+            content: post.content,
+            htmlContent: htmlContent,
+            date: postDate,
+            readTime: readTime,
+            size: size,
+            contentLength: contentLength,
+            hidden: isHidden
+        };
+        await env.BLOG_KV.put('post:' + post.slug, JSON.stringify(postData));
+
+        var indexEntry = {
+            id: postId,
+            slug: post.slug,
+            title: post.title,
+            tags: post.tags || [],
+            date: postDate,
+            size: size,
+            contentLength: contentLength,
+            hidden: isHidden
+        };
+
+        if (existingIdx >= 0) {
+            indexEntry.createdAt = indexData[existingIdx].createdAt || now;
+            indexData[existingIdx] = indexEntry;
+        } else {
+            indexEntry.createdAt = now;
+            indexData.push(indexEntry);
+        }
+        imported++;
+    }
+
+    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
+    return jsonResponse({
+        message: '导入完成',
+        imported: imported,
+        skipped: skipped,
+        failed: failed,
+        total: data.posts.length
+    });
+}
+
 // ==================== 路由分发 ====================
 function handleAPI(request, env, pathname) {
     const url = new URL(request.url);
@@ -306,6 +515,28 @@ function handleAPI(request, env, pathname) {
         if (method === 'DELETE') {
             return handlePostDelete(env, request, slug);
         }
+    }
+
+    // Post by ID: /api/post-by-id/:id
+    var postIdMatch = pathname.match(/^\/api\/post-by-id\/(\d+)$/);
+    if (postIdMatch && method === 'GET') {
+        return handlePostGetById(env, postIdMatch[1]);
+    }
+
+    // Toggle visibility: /api/post/:slug/toggle
+    var toggleMatch = pathname.match(/^\/api\/post\/([^/]+)\/toggle$/);
+    if (toggleMatch && method === 'POST') {
+        return handleToggleVisibility(env, request, toggleMatch[1]);
+    }
+
+    // Export
+    if (pathname === '/api/export' && method === 'GET') {
+        return handleExport(env, request);
+    }
+
+    // Import
+    if (pathname === '/api/import' && method === 'POST') {
+        return handleImport(env, request);
     }
 
     return jsonResponse({ error: 'API 路由不存在' }, 404);
