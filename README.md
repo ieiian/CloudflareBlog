@@ -60,6 +60,52 @@ npm run deploy
 npm run deploy:pages
 ```
 
+### Docker 部署
+
+使用 Docker 可在任何服务器上部署，基于 miniflare v2 模拟 Workers + KV 环境。
+
+```bash
+# 1. 构建 _worker.js
+npm run build
+
+# 2. 构建 Docker 镜像（从项目根目录）
+docker build -t terminal-blog -f docker/Dockerfile .
+
+# 3. 运行（KV 数据持久化到 Docker Volume）
+docker run -d \
+  --name terminal-blog \
+  -p 8788:8788 \
+  -v blog-kv:/app/.kv \
+  terminal-blog
+
+# 4. （可选）自定义管理员密码
+docker run -d \
+  --name terminal-blog \
+  -p 8788:8788 \
+  -v blog-kv:/app/.kv \
+  -e ADMIN_USER=myuser \
+  -e ADMIN_PASS=mypassword \
+  terminal-blog
+```
+
+访问 http://localhost:8788
+
+**Docker 管理命令：**
+
+```bash
+# 查看日志
+docker logs terminal-blog
+
+# 停止
+docker stop terminal-blog
+
+# 删除
+docker rm terminal-blog
+
+# 清除 KV 数据（重新开始）
+docker volume rm blog-kv
+```
+
 ## ⚙️ 环境变量
 
 | 变量 | 说明 | 默认值 |
