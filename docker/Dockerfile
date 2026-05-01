@@ -26,11 +26,12 @@ ENV ADMIN_USER=admin
 ENV ADMIN_PASS=admin123
 ENV PORT=8788
 
-# 启动 miniflare
-CMD ["npx", "miniflare", \
-     "_worker.js", \
-     "--modules", \
-     "--kv", "BLOG_KV", \
-     "--kv-persist", ".kv", \
-     "--port", "8788", \
-     "--host", "0.0.0.0"]
+# 启动 miniflare（shell 形式以便展开环境变量，--binding 将变量传入 worker 的 env 对象）
+CMD npx miniflare _worker.js \
+    --modules \
+    --kv BLOG_KV \
+    --kv-persist .kv \
+    --port "$PORT" \
+    --host 0.0.0.0 \
+    --binding "ADMIN_USER=$ADMIN_USER" \
+    --binding "ADMIN_PASS=$ADMIN_PASS"
