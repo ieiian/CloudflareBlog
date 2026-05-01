@@ -1610,11 +1610,7 @@ async function handlePostsList(env, url) {
         posts = posts.filter(function(p) { return !p.hidden; });
     }
 
-    posts.sort(function(a, b) {
-        var ta = b.createdAt || b.date;
-        var tb = a.createdAt || a.date;
-        return new Date(ta) - new Date(tb);
-    });
+    posts.sort(function(a, b) { return b.id - a.id; });
 
     const totalPosts = posts.length;
     const totalPages = Math.max(1, Math.ceil(totalPosts / limit));
@@ -1723,7 +1719,14 @@ async function handlePostCreate(env, request) {
     }
     if (!postId) {
         var nextIdRaw = await env.BLOG_KV.get('post:nextId');
-        var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
+        var nextId = nextIdRaw ? parseInt(nextIdRaw) : 0;
+        // 扫描已有文章 ID，确保 nextId 不冲突
+        for (var j = 0; j < indexData.length; j++) {
+            if (indexData[j].id && indexData[j].id >= nextId) {
+                nextId = indexData[j].id + 1;
+            }
+        }
+        if (nextId < 10001) nextId = 10001;
         postId = nextId;
         await env.BLOG_KV.put('post:nextId', String(nextId + 1));
         await env.BLOG_KV.put('post:id:' + postId, slug);
@@ -1952,6 +1955,15 @@ async function handleImport(env, request) {
 
     await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
     await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
+    // 同步 post:nextId 为最大 ID + 1，防止后续新建文章 ID 冲突
+    var maxId = 0;
+    indexData.forEach(function(p) {
+        if (p.id && p.id > maxId) maxId = p.id;
+    });
+    if (maxId > 0) {
+        await env.BLOG_KV.put('post:nextId', String(maxId + 1));
+    }
 
     return jsonResponse({
         message: '导入完成',
