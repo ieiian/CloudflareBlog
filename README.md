@@ -62,64 +62,91 @@ npm run deploy:pages
 
 ### Docker 部署
 
-使用 Docker 可在任何服务器上部署，基于 miniflare v2 模拟 Workers + KV 环境。
+Docker 镜像已发布到 Docker Hub：**[ieiian/terminal-blog](https://hub.docker.com/r/ieiian/terminal-blog)**
+
+基于 miniflare v2 模拟 Workers + KV 环境，可在任何服务器上一键部署。
+
+#### 方式一：Docker Compose（推荐）
+
+1. 创建 `docker-compose.yml`：
+
+```yaml
+services:
+  terminal-blog:
+    image: ieiian/terminal-blog:latest
+    container_name: terminal-blog
+    ports:
+      - "8788:8788"
+    volumes:
+      - blog-kv:/app/.kv
+    environment:
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASS=${ADMIN_PASS:-admin123}
+    restart: unless-stopped
+
+volumes:
+  blog-kv:
+```
+
+2. 一键启动：
 
 ```bash
-# 1. 构建 _worker.js
-npm run build
+docker compose up -d
+```
 
-# 2. 构建 Docker 镜像（从项目根目录）
-docker build -t terminal-blog -f docker/Dockerfile .
+3. 自定义管理员密码：
 
-# 3. 运行（KV 数据持久化到 Docker Volume）
+```bash
+ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose up -d
+```
+
+#### 方式二：Docker Run
+
+```bash
+# 拉取镜像
+docker pull ieiian/terminal-blog:latest
+
+# 运行（KV 数据持久化到 Docker Volume）
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
   -v blog-kv:/app/.kv \
-  terminal-blog
+  ieiian/terminal-blog:latest
 
-# 4. （可选）自定义管理员密码
+# 自定义管理员密码
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
   -v blog-kv:/app/.kv \
   -e ADMIN_USER=myuser \
   -e ADMIN_PASS=mypassword \
-  terminal-blog
+  ieiian/terminal-blog:latest
 ```
 
-访问 http://localhost:8788
-
-**Docker Compose 部署（推荐）：**
+#### 方式三：从源码自行构建
 
 ```bash
-# 1. 构建 _worker.js
 npm run build
-
-# 2. 一键启动
-docker compose -f docker/docker-compose.yml up -d
-
-# 3. （可选）自定义管理员密码
-ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose -f docker/docker-compose.yml up -d
+docker build -t terminal-blog -f docker/Dockerfile .
+docker run -d --name terminal-blog -p 8788:8788 -v blog-kv:/app/.kv terminal-blog
 ```
 
-访问 http://localhost:8788
-
-**Docker / Docker Compose 管理命令：**
+#### 管理命令
 
 ```bash
 # 查看日志
-docker logs terminal-blog
-# 或
-docker compose -f docker/docker-compose.yml logs -f
+docker logs -f terminal-blog
 
 # 停止
-docker stop terminal-blog
+docker compose down
 # 或
-docker compose -f docker/docker-compose.yml down
+docker stop terminal-blog
 
-# 删除并清除数据
-docker compose -f docker/docker-compose.yml down -v
+# 停止并清除所有数据
+docker compose down -v
+
+# 更新到最新版本
+docker compose pull && docker compose up -d
 ```
 
 ## ⚙️ 环境变量

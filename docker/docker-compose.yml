@@ -1,9 +1,10 @@
 services:
   terminal-blog:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    image: terminal-blog:latest
+    image: ieiian/terminal-blog:latest
+    # 如需自行构建，取消注释以下行：
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
     container_name: terminal-blog
     ports:
       - "8788:8788"
