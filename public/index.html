@@ -513,6 +513,40 @@
         .admin-btn.danger:hover {
             background: rgba(255, 107, 107, 0.1);
         }
+        .admin-btn.cyan {
+            color: var(--cyan);
+            border-color: var(--cyan);
+        }
+        .admin-btn.cyan:hover {
+            background: rgba(0, 229, 255, 0.1);
+        }
+
+        /* Preview overlay */
+        .preview-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9998;
+            overflow-y: auto;
+            padding: 30px 16px;
+        }
+        .preview-close {
+            position: fixed;
+            top: 16px;
+            right: 24px;
+            z-index: 9999;
+            background: var(--bg-header);
+            color: var(--cyan);
+            border: 1px solid var(--cyan);
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+        .preview-close:hover {
+            background: rgba(0, 229, 255, 0.1);
+        }
 
         /* Nav links in terminal */
         .nav-links {
@@ -1278,6 +1312,7 @@
                 <textarea id="adminContent" placeholder="# 我的文章标题\n\n文章内容..."></textarea>
 
                 <div style="margin-top: 12px; display: flex; gap: 12px;">
+                    <button class="admin-btn cyan" onclick="previewPost()">👁️ 预览发布</button>
                     <button class="admin-btn" onclick="savePost()">💾 发布文章</button>
                     <button class="admin-btn danger" onclick="deletePost()">🗑️ 删除文章</button>
                 </div>
@@ -1369,6 +1404,75 @@
             window.scrollTo(0, 0);
         } catch (err) {
             showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+    }
+
+    // ============ Preview Post ============
+    function previewPost() {
+        var slug = document.getElementById('adminSlug').value.trim() || 'untitled';
+        var title = document.getElementById('adminTitle').value.trim() || '未命名文章';
+        var tagsStr = document.getElementById('adminTags').value.trim();
+        var content = document.getElementById('adminContent').value || '';
+        var tags = tagsStr ? tagsStr.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+        var htmlContent = parseMarkdown(content);
+        var today = new Date().toISOString().split('T')[0];
+        var readTime = Math.max(1, Math.ceil(content.length / 500));
+        var tagsHtml = tags.map(function(t) { return '<span class="tag">[' + escapeHtml(t) + ']</span>'; }).join(' · ');
+
+        var overlay = document.createElement('div');
+        overlay.className = 'preview-overlay';
+        overlay.id = 'previewOverlay';
+        overlay.innerHTML =
+            '<button class="preview-close" onclick="closePreview()">✕ 关闭预览</button>' +
+            '<div class="terminal" style="margin: 0 auto;">' +
+                '<div class="title-bar">' +
+                    '<div class="dot red"></div>' +
+                    '<div class="dot yellow"></div>' +
+                    '<div class="dot green"></div>' +
+                    '<div class="title">预览模式 ~ ' + escapeHtml(title) + '</div>' +
+                '</div>' +
+                '<div class="term-body">' +
+                    prompt('hacker', 'blog', 'cat ./posts/' + escapeHtml(slug) + '.md') +
+                    '<div class="nav-links">' +
+                        '<a onclick="closePreview()" style="color: var(--cyan);">[← 返回编辑]</a>' +
+                        '<span style="color: var(--yellow); font-size: 0.85em;">⬆ 这是预览模式，文章尚未发布</span>' +
+                    '</div>' +
+                    '<div class="post-detail">' +
+                        '<div class="file-header">' +
+                            '<span class="filename">' + escapeHtml(slug) + '.md</span>' +
+                            '<span class="lang">预览</span>' +
+                        '</div>' +
+                        '<div class="file-body">' +
+                            '<h2 class="glow"># ' + escapeHtml(title) + '</h2>' +
+                            '<div class="meta-line">' +
+                                tagsHtml + (tagsHtml ? ' · ' : '') +
+                                '发表于 <span class="date-highlight">' + today + '</span>' +
+                                ' · 阅读约 ' + readTime + ' 分钟' +
+                            '</div>' +
+                            '<div class="post-content">' +
+                                (htmlContent || '<p style="color: var(--gray);">暂无内容</p>') +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    separator() +
+                    '<div class="prompt" style="margin-top: 16px;">' +
+                        '<span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="status-bar">' +
+                    '<div><span class="branch">⎇ main</span> · TerminalBlog</div>' +
+                    '<div><span class="mode" style="color: var(--yellow);">PREVIEW</span> · utf-8 · markdown</div>' +
+                '</div>' +
+            '</div>';
+
+        document.body.appendChild(overlay);
+        overlay.scrollTop = 0;
+    }
+
+    function closePreview() {
+        var overlay = document.getElementById('previewOverlay');
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
         }
     }
 
