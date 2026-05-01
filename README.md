@@ -90,20 +90,36 @@ docker run -d \
 
 访问 http://localhost:8788
 
-**Docker 管理命令：**
+**Docker Compose 部署（推荐）：**
+
+```bash
+# 1. 构建 _worker.js
+npm run build
+
+# 2. 一键启动
+docker compose -f docker/docker-compose.yml up -d
+
+# 3. （可选）自定义管理员密码
+ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose -f docker/docker-compose.yml up -d
+```
+
+访问 http://localhost:8788
+
+**Docker / Docker Compose 管理命令：**
 
 ```bash
 # 查看日志
 docker logs terminal-blog
+# 或
+docker compose -f docker/docker-compose.yml logs -f
 
 # 停止
 docker stop terminal-blog
+# 或
+docker compose -f docker/docker-compose.yml down
 
-# 删除
-docker rm terminal-blog
-
-# 清除 KV 数据（重新开始）
-docker volume rm blog-kv
+# 删除并清除数据
+docker compose -f docker/docker-compose.yml down -v
 ```
 
 ## ⚙️ 环境变量

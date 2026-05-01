@@ -1,0 +1,18 @@
+services:
+  terminal-blog:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: terminal-blog:latest
+    container_name: terminal-blog
+    ports:
+      - "8788:8788"
+    volumes:
+      - blog-kv:/app/.kv
+    environment:
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASS=${ADMIN_PASS:-admin123}
+    restart: unless-stopped
+
+volumes:
+  blog-kv:
