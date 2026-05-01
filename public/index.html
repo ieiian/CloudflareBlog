@@ -530,23 +530,6 @@
             overflow-y: auto;
             padding: 30px 16px;
         }
-        .preview-close {
-            position: fixed;
-            top: 16px;
-            right: 24px;
-            z-index: 9999;
-            background: var(--bg-header);
-            color: var(--cyan);
-            border: 1px solid var(--cyan);
-            padding: 6px 16px;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 0.85em;
-            cursor: pointer;
-        }
-        .preview-close:hover {
-            background: rgba(0, 229, 255, 0.1);
-        }
 
         /* Nav links in terminal */
         .nav-links {
@@ -1423,7 +1406,6 @@
         overlay.className = 'preview-overlay';
         overlay.id = 'previewOverlay';
         overlay.innerHTML =
-            '<button class="preview-close" onclick="closePreview()">✕ 关闭预览</button>' +
             '<div class="terminal" style="margin: 0 auto;">' +
                 '<div class="title-bar">' +
                     '<div class="dot red"></div>' +
