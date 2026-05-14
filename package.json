@@ -1,0 +1,19 @@
+{
+  "name": "terminal-blog",
+  "version": "1.0.0",
+  "description": "终端风格博客 - Cloudflare Workers + KV（单文件 _worker.js）",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-worker.js",
+    "dev": "wrangler dev --port 8788",
+    "dev:pages": "wrangler pages dev public --kv BLOG_KV --port 8788",
+    "deploy": "wrangler deploy",
+    "deploy:pages": "wrangler pages deploy public --kv BLOG_KV",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js",
+    "import": "node scripts/import.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.90.1"
+  }
+}

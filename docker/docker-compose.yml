@@ -1,0 +1,20 @@
+services:
+  terminal-blog:
+    image: ieiian/terminal-blog:latest
+    # 如需自行构建，取消注释以下行：
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
+    container_name: terminal-blog
+    ports:
+      - "8788:8788"
+    volumes:
+      - blog-kv:/app/.kv
+      - ./download:/app/download
+    environment:
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASS=${ADMIN_PASS:-admin123}
+    restart: unless-stopped
+
+volumes:
+  blog-kv:
