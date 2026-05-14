@@ -283,6 +283,35 @@ const HTML_CONTENT = `<!DOCTYPE html>
             overflow-x: auto;
             font-size: 1em;
         }
+        .post-content .code-block {
+            position: relative;
+        }
+        .post-content .code-block:hover .copy-btn {
+            opacity: 1;
+        }
+        .post-content .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--gray);
+            font-family: inherit;
+            font-size: 12px;
+            padding: 4px 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s, color 0.2s;
+            z-index: 1;
+        }
+        .post-content .copy-btn:hover {
+            color: var(--green);
+            border-color: var(--green);
+        }
+        .post-content .copy-btn.copied {
+            color: var(--green);
+        }
 
         /* Dark scrollbar */
         * {
@@ -701,7 +730,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
         let html = md
             // Code blocks
             .replace(/\`\`\`(\\w*)\\n([\\s\\S]*?)\`\`\`/g, (_, lang, code) =>
-                \`<pre><code>\${escapeHtml(code.trim())}</code></pre>\`)
+                '<div class="code-block"><button class="copy-btn" data-lang="' + lang + '" data-code="' + btoa(unescape(encodeURIComponent(code.trim()))) + '">复制</button><pre><code>' + escapeHtml(code.trim()) + '</code></pre></div>')
             // Inline code
             .replace(/\`([^\`]+)\`/g, '<code>$1</code>')
             // Headers
@@ -1141,7 +1170,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
                         \${shareUrl ? \` · <span style="color: var(--purple);">🔗 \${shareUrl}</span>\` : ''}
                     </div>
                     <div class="post-content">
-                        \${post.htmlContent || \`<p class="content-text">\${escapeHtml(post.content || '')}</p>\`}
+                        \${parseMarkdown(post.content || '')}
                     </div>
                 </div>
             </div>
@@ -1563,6 +1592,27 @@ const HTML_CONTENT = `<!DOCTYPE html>
         }
     }
 
+    // ============ Copy Code Button ============
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('copy-btn')) {
+            var btn = e.target;
+            var code = decodeURIComponent(escape(atob(btn.getAttribute('data-code'))));
+            navigator.clipboard.writeText(code).then(function() {
+                btn.textContent = '已复制';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = '复制';
+                    btn.classList.remove('copied');
+                }, 1500);
+            }).catch(function() {
+                btn.textContent = '复制失败';
+                setTimeout(function() {
+                    btn.textContent = '复制';
+                }, 1500);
+            });
+        }
+    });
+
     // ============ Init ============
     // Handle direct URL: /<ID> (numeric)
     (function() {
@@ -1602,7 +1652,7 @@ function jsonResponse(data, status = 200) {
 function markdownToHtml(md) {
     let html = md
         .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-            '<pre><code>' + escapeHtml(code.trim()) + '</code></pre>')
+            '<div class="code-block"><button class="copy-btn" data-lang="' + lang + '" data-code="' + btoa(unescape(encodeURIComponent(code.trim()))) + '">复制</button><pre><code>' + escapeHtml(code.trim()) + '</code></pre></div>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')

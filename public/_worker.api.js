@@ -23,7 +23,7 @@ function jsonResponse(data, status = 200) {
 function markdownToHtml(md) {
     let html = md
         .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-            '<pre><code>' + escapeHtml(code.trim()) + '</code></pre>')
+            '<div class="code-block"><button class="copy-btn" data-lang="' + lang + '" data-code="' + btoa(unescape(encodeURIComponent(code.trim()))) + '">复制</button><pre><code>' + escapeHtml(code.trim()) + '</code></pre></div>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')

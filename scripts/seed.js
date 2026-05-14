@@ -315,15 +315,27 @@ async function main() {
     console.log('🌱 开始写入种子数据...');
     console.log(`📡 目标地址: ${BASE_URL}\n`);
 
-    // 写入文章索引
-    const index = POSTS.map(p => ({
-        slug: p.slug,
-        title: p.title,
-        tags: p.tags,
-        date: p.date,
-        size: (new Blob([p.content]).size / 1024).toFixed(1) + ' KB',
-        contentLength: new Blob([p.content]).size
-    }));
+    // 先登录获取 token
+    const adminUser = process.env.ADMIN_USER || 'admin';
+    const adminPass = process.env.ADMIN_PASS || 'admin123';
+    console.log(`🔐 登录管理员账户: ${adminUser}`);
+
+    let authToken = null;
+    try {
+        const loginRes = await fetch(`${BASE_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: adminUser, password: adminPass })
+        });
+        const loginData = await loginRes.json();
+        authToken = loginData.token;
+        if (!authToken) throw new Error(loginData.error || '登录失败');
+        console.log('  ✅ 登录成功\n');
+    } catch (e) {
+        console.log(`  ❌ 登录失败: ${e.message}`);
+        console.log('  💡 提示: 确保 wrangler dev 已启动，且 ADMIN_USER/ADMIN_PASS 环境变量正确\n');
+        process.exit(1);
+    }
 
     console.log(`📝 共 ${POSTS.length} 篇文章待写入\n`);
 
@@ -331,7 +343,10 @@ async function main() {
         try {
             const res = await fetch(`${BASE_URL}/api/post`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
                 body: JSON.stringify(post)
             });
 
