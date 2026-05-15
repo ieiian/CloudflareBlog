@@ -1,10 +1,23 @@
 node_modules/
+package-lock.json
 .DS_Store
+.env
 .env.local
+.env.production
 .wrangler/
+_worker.js
+*.log
+npm-debug.log*
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
 
 # 过滤的文件和文件夹
 Markdown/
 CLAUDE.md
 INDEX.md
 .claude/
+docker/download/
