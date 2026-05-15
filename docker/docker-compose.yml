@@ -9,6 +9,10 @@ services:
       - "8788:8788"
     volumes:
       - blog-wrangler-state:/app/.wrangler/state
+      # Optional: mount local Markdown files for `docker exec terminal-blog npm run import`
+      - ../Markdown:/app/Markdown
+      # Optional: reserved folder for download/export workflows
+      - ../download:/app/download
     environment:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASS: ${ADMIN_PASS:-admin123}

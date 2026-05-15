@@ -84,11 +84,13 @@ ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose -f docker/docker-compose.
 # 从源码构建镜像；不需要先在宿主机运行 npm run build
 docker build -t terminal-blog -f docker/Dockerfile .
 
-# 运行（Wrangler 本地 KV 状态持久化到 Docker Volume）
+# 运行（Wrangler 本地 KV 状态持久化到 Docker Volume；Markdown/download 为可选映射目录）
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
   -v blog-wrangler-state:/app/.wrangler/state \
+  -v "$(pwd)/Markdown:/app/Markdown" \
+  -v "$(pwd)/download:/app/download" \
   terminal-blog
 
 # 自定义管理员密码
@@ -96,6 +98,8 @@ docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
   -v blog-wrangler-state:/app/.wrangler/state \
+  -v "$(pwd)/Markdown:/app/Markdown" \
+  -v "$(pwd)/download:/app/download" \
   -e ADMIN_USER=myuser \
   -e ADMIN_PASS=mypassword \
   terminal-blog
