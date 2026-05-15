@@ -62,73 +62,52 @@ npm run deploy:pages
 
 ### Docker 部署
 
-Docker 镜像已发布到 Docker Hub：**[ieiian/terminal-blog](https://hub.docker.com/r/ieiian/terminal-blog)**
-
-基于 miniflare v2 模拟 Workers + KV 环境，可在任何服务器上一键部署。
+Docker 镜像基于 Wrangler 本地运行时启动生成后的 `_worker.js`，构建阶段会在容器内执行 `npm ci` 和 `npm run build`，确保与本地 `npm run dev` 使用同一套源文件和运行逻辑。
 
 #### 方式一：Docker Compose（推荐）
 
-1. 创建 `docker-compose.yml`：
-
-```yaml
-services:
-  terminal-blog:
-    image: ieiian/terminal-blog:latest
-    container_name: terminal-blog
-    ports:
-      - "8788:8788"
-    volumes:
-      - blog-kv:/app/.kv
-    environment:
-      - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASS=${ADMIN_PASS:-admin123}
-    restart: unless-stopped
-
-volumes:
-  blog-kv:
-```
-
-2. 一键启动：
+项目已提供 `docker/docker-compose.yml`。从仓库根目录运行：
 
 ```bash
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-3. 自定义管理员密码：
+自定义管理员密码：
 
 ```bash
-ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose up -d
+ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 #### 方式二：Docker Run
 
 ```bash
-# 拉取镜像
-docker pull ieiian/terminal-blog:latest
+# 从源码构建镜像；不需要先在宿主机运行 npm run build
+docker build -t terminal-blog -f docker/Dockerfile .
 
-# 运行（KV 数据持久化到 Docker Volume）
+# 运行（Wrangler 本地 KV 状态持久化到 Docker Volume）
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
-  -v blog-kv:/app/.kv \
-  ieiian/terminal-blog:latest
+  -v blog-wrangler-state:/app/.wrangler/state \
+  terminal-blog
 
 # 自定义管理员密码
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
-  -v blog-kv:/app/.kv \
+  -v blog-wrangler-state:/app/.wrangler/state \
   -e ADMIN_USER=myuser \
   -e ADMIN_PASS=mypassword \
-  ieiian/terminal-blog:latest
+  terminal-blog
 ```
 
-#### 方式三：从源码自行构建
+访问 http://localhost:8788
+
+#### 发布镜像
 
 ```bash
-npm run build
-docker build -t terminal-blog -f docker/Dockerfile .
-docker run -d --name terminal-blog -p 8788:8788 -v blog-kv:/app/.kv terminal-blog
+docker build -t ieiian/terminal-blog:latest -f docker/Dockerfile .
+docker push ieiian/terminal-blog:latest
 ```
 
 #### 管理命令
@@ -138,15 +117,12 @@ docker run -d --name terminal-blog -p 8788:8788 -v blog-kv:/app/.kv terminal-blo
 docker logs -f terminal-blog
 
 # 停止
-docker compose down
+docker compose -f docker/docker-compose.yml down
 # 或
 docker stop terminal-blog
 
 # 停止并清除所有数据
-docker compose down -v
-
-# 更新到最新版本
-docker compose pull && docker compose up -d
+docker compose -f docker/docker-compose.yml down -v
 ```
 
 ## ⚙️ 环境变量

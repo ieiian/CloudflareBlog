@@ -2,20 +2,24 @@
 .git
 .gitignore
 
-# 源文件（只需要构建后的 _worker.js）
-public/
-scripts/
-
-# Node
+# Node / package manager state from the host
 node_modules/
+npm-debug.log*
 
-# 配置文件（Docker 环境不需要）
-wrangler.toml
-package.json
-package-lock.json
+# Local Wrangler state/cache from the host
+.wrangler/
 
-# Docker 自身
-docker/
+# Local/generated files that the image rebuilds itself
+_worker.js
 
-# 文档
+# Runtime/data folders
+Markdown/
+download/
+
+# Editor/assistant metadata
+.claude/
+CLAUDE.md
+INDEX.md
+
+# Docker files not needed inside the runtime image
 README.md

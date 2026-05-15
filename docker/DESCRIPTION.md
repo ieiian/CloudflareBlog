@@ -1,6 +1,6 @@
 # Terminal Blog
 
-一个基于 Cloudflare Workers + KV 的终端风格博客系统，使用单个 `_worker.js` 文件部署。基于 miniflare v2 模拟 Workers + KV 环境，可在任何服务器上一键部署。
+一个基于 Cloudflare Workers + KV 的终端风格博客系统，使用单个 `_worker.js` 文件部署。Docker 镜像使用 Wrangler 本地运行时启动生成后的 Worker，构建阶段会在容器内执行 `npm ci` 和 `npm run build`，确保与本地 `npm run dev` 行为一致。
 
 ## 快速开始
 
@@ -14,16 +14,18 @@ services:
     ports:
       - "8788:8788"
     volumes:
-      - blog-kv:/app/.kv
-      - ./download:/app/download
+      - blog-wrangler-state:/app/.wrangler/state
     environment:
-      - ADMIN_USER=admin
-      - ADMIN_PASS=admin123
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:-admin123}
+      PORT: ${PORT:-8788}
     restart: unless-stopped
 
 volumes:
-  blog-kv:
+  blog-wrangler-state:
 ```
+
+启动：
 
 ```bash
 docker compose up -d
@@ -37,8 +39,7 @@ docker compose up -d
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
-  -v blog-kv:/app/.kv \
-  -v ./download:/app/download \
+  -v blog-wrangler-state:/app/.wrangler/state \
   -e ADMIN_USER=admin \
   -e ADMIN_PASS=admin123 \
   ieiian/terminal-blog:latest
@@ -50,41 +51,13 @@ docker run -d \
 |------|------|--------|
 | `ADMIN_USER` | 管理员用户名 | `admin` |
 | `ADMIN_PASS` | 管理员密码 | `admin123` |
-| `PORT` | 端口号 | `8788` |
+| `PORT` | 容器内监听端口 | `8788` |
 
-### 自定义管理员密码
-
-```bash
-# Docker Compose
-ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose up -d
-
-# Docker Run
-docker run -d \
-  -p 8788:8788 \
-  -e ADMIN_USER=myuser \
-  -e ADMIN_PASS=mypassword \
-  ieiian/terminal-blog:latest
-```
-
-## 挂载目录
+## 持久化数据
 
 | 路径 | 说明 |
 |------|------|
-| `/app/.kv` | KV 数据持久化目录 |
-| `/app/download` | 下载文件夹，用于转存文件 |
-
-### 本地 download 文件夹
-
-```bash
-# 创建本地 download 目录
-mkdir -p download
-
-# 运行容器（download 目录会持久化到本地）
-docker run -d \
-  -p 8788:8788 \
-  -v $(pwd)/download:/app/download \
-  ieiian/terminal-blog:latest
-```
+| `/app/.wrangler/state` | Wrangler 本地 KV/运行状态目录；挂载 Docker Volume 可保留文章数据 |
 
 ## 管理命令
 
@@ -92,109 +65,45 @@ docker run -d \
 # 查看日志
 docker logs -f terminal-blog
 
-# 停止
-docker compose down
-# 或
+# 停止容器
 docker stop terminal-blog
 
-# 停止并清除所有数据
-docker compose down -v
+# 删除容器
+docker rm terminal-blog
 
-# 更新到最新版本
-docker compose pull && docker compose up -d
-```
-
-## 导入文章
-
-将 Markdown 文件放入 `Markdown/` 目录，然后使用 import 脚本导入。
-
-### 前置准备
-
-1. 启动博客容器
-2. 确保 Markdown 文件准备好（带 YAML frontmatter）：
-
-```markdown
----
-title: 我的文章标题
-date: 2024-01-15
-tags: ["技术", "教程"]
----
-# Markdown 内容...
-```
-
-### 使用 import 脚本
-
-在宿主机上运行（博客运行在 localhost:8788）：
-
-```bash
-# 默认参数
-npm run import
-
-# 自定义目标地址
-SEED_URL=http://your-domain.com npm run import
-
-# 自定义管理员账号
-ADMIN_USER=myuser ADMIN_PASS=mypassword npm run import
-```
-
-### 功能说明
-
-- 按日期排序导入（先旧后新）
-- 按标题去重，已存在的文章会被跳过
-- 所有文章自动分配新的 ID
-- 支持 `hidden` 字段控制文章可见性
-
-### import 脚本命令
-
-```bash
-npm run import          # 使用默认配置导入
-SEED_URL=http://example.com npm run import   # 指定博客地址
-ADMIN_USER=user ADMIN_PASS=pass npm run import  # 指定管理员账号
-```
-
-## 重置数据
-
-清除所有 KV 数据（慎用）：
-
-```bash
-npm run reset
-# 或指定地址
-SEED_URL=http://your-domain.com npm run reset
-```
-
-## 填充种子数据
-
-导入 5 篇示例文章：
-
-```bash
-npm run seed
-# 或指定地址
-SEED_URL=http://your-domain.com npm run seed
+# 删除持久化数据（慎用）
+docker volume rm blog-wrangler-state
 ```
 
 ## 从源码构建
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/ieiian/terminal-blog.git
-cd terminal-blog
+git clone https://github.com/ieiian/CloudflareBlog.git
+cd CloudflareBlog
 
-# 2. 构建 worker
-npm install
-npm run build
+docker build -t terminal-blog:latest -f docker/Dockerfile .
 
-# 3. 构建 Docker 镜像
-docker build -f docker/Dockerfile -t terminal-blog .
-
-# 4. 运行
 docker run -d \
   --name terminal-blog \
   -p 8788:8788 \
-  -v blog-kv:/app/.kv \
-  -v $(pwd)/download:/app/download \
-  -e ADMIN_USER=admin \
-  -e ADMIN_PASS=admin123 \
-  terminal-blog
+  -v blog-wrangler-state:/app/.wrangler/state \
+  terminal-blog:latest
+```
+
+## 导入与维护
+
+项目内的 `npm run seed`、`npm run import`、`npm run reset` 默认访问 `http://localhost:8788`，可在宿主机上运行这些命令管理正在运行的容器实例：
+
+```bash
+npm run seed
+npm run import
+npm run reset
+```
+
+也可以通过环境变量覆盖目标地址和管理员账号：
+
+```bash
+SEED_URL=http://your-domain.com ADMIN_USER=myuser ADMIN_PASS=mypassword npm run import
 ```
 
 ## 默认访问
@@ -206,6 +115,6 @@ docker run -d \
 ## 技术栈
 
 - 前端：HTML + CSS + Vanilla JavaScript
-- 后端：Cloudflare Workers API（模拟）
-- 存储：Cloudflare KV（miniflare 模拟）
-- 运行时：miniflare v2（Node.js）
+- 后端：Cloudflare Workers API
+- 本地容器运行时：Wrangler dev / workerd
+- 存储：Cloudflare KV（Wrangler 本地持久化模拟）
