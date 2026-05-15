@@ -1,8 +1,8 @@
 // ============================================================
 // Terminal Blog - API handlers (ID-only, no slug)
+// Data is stored in MySQL through env.DB.
 // ============================================================
 
-// ==================== 工具函数 ====================
 function escapeHtml(str) {
     return str
         .replace(/&/g, '&')
@@ -53,62 +53,39 @@ function markdownToHtml(md) {
     return html;
 }
 
+function buildPostData(data, existingPost) {
+    const content = data.content;
+    const contentLength = new Blob([content]).size;
+    return {
+        title: data.title,
+        tags: data.tags || [],
+        content,
+        htmlContent: markdownToHtml(content),
+        date: data.date || (existingPost && existingPost.date ? existingPost.date : new Date().toISOString().split('T')[0]),
+        readTime: Math.max(1, Math.ceil(content.length / 500)),
+        size: (contentLength / 1024).toFixed(1) + ' KB',
+        contentLength,
+        hidden: existingPost ? !!existingPost.hidden : true,
+        locked: existingPost ? !!existingPost.locked : false,
+        lockPassword: existingPost ? (existingPost.lockPassword || '') : ''
+    };
+}
+
 async function verifyAuth(env, request) {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return jsonResponse({ error: '未登录，请先登录', needAuth: true }, 401);
     }
     const token = authHeader.substring(7);
-    const session = await env.BLOG_KV.get('session:' + token, { type: 'json' });
+    const session = await env.DB.getSession(token);
     if (!session) {
         return jsonResponse({ error: '登录已过期，请重新登录', needAuth: true }, 401);
     }
     return null;
 }
 
-async function updateTagIndex(env, posts) {
-    const tagMap = {};
-    posts.forEach(function(post) {
-        (post.tags || []).forEach(function(tag) {
-            tagMap[tag] = (tagMap[tag] || 0) + 1;
-        });
-    });
-    const tags = Object.entries(tagMap).map(function(entry) {
-        return { name: entry[0], count: entry[1] };
-    });
-    tags.sort(function(a, b) { return b.count - a.count; });
-    await env.BLOG_KV.put('tags:index', JSON.stringify({ tags: tags }));
-}
-
-async function getNextId(env, existingPosts) {
-    var nextIdRaw = await env.BLOG_KV.get('post:nextId');
-    var nextId = nextIdRaw ? parseInt(nextIdRaw) : 10001;
-    // Ensure no collision with existing IDs
-    for (var j = 0; j < existingPosts.length; j++) {
-        if (existingPosts[j].id && existingPosts[j].id >= nextId) {
-            nextId = existingPosts[j].id + 1;
-        }
-    }
-    if (nextId < 10001) nextId = 10001;
-    return nextId;
-}
-
-// ==================== API 处理函数 ====================
-
 async function handleStats(env) {
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' });
-    const posts = indexData || [];
-    const totalPosts = posts.length;
-    const sorted = posts.slice().sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
-    const lastUpdate = sorted.length > 0 ? sorted[0].date : null;
-    const ascSorted = posts.slice().sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
-    const startDate = ascSorted.length > 0 ? ascSorted[0].date : '2026-01-01';
-    const uptime = Math.floor((Date.now() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
-    return jsonResponse({
-        totalPosts: totalPosts,
-        lastUpdate: lastUpdate || new Date().toISOString().split('T')[0],
-        uptime: Math.max(1, uptime)
-    });
+    return jsonResponse(await env.DB.getStats());
 }
 
 async function handlePostsList(env, url) {
@@ -116,67 +93,26 @@ async function handlePostsList(env, url) {
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const tag = url.searchParams.get('tag') || '';
     const admin = url.searchParams.get('admin') === 'true';
-
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' });
-    let posts = indexData || [];
-
-    if (tag) {
-        posts = posts.filter(function(p) { return p.tags && p.tags.indexOf(tag) !== -1; });
-    }
-
-    // Public view: filter out hidden posts (unless admin=true)
-    if (!admin) {
-        posts = posts.filter(function(p) { return !p.hidden; });
-    }
-
-    posts.sort(function(a, b) { return b.id - a.id; });
-
-    const totalPosts = posts.length;
-    const totalPages = Math.max(1, Math.ceil(totalPosts / limit));
-    const start = (page - 1) * limit;
-    const paginatedPosts = posts.slice(start, start + limit).map(function(p) {
-        return {
-            id: p.id,
-            title: p.title,
-            date: p.date,
-            size: p.size || ((p.contentLength || 0) / 1024).toFixed(1) + ' KB',
-            tags: p.tags || [],
-            hidden: !!p.hidden,
-            locked: p.locked || false
-        };
-    });
-
-    return jsonResponse({ posts: paginatedPosts, page: page, totalPages: totalPages, totalPosts: totalPosts });
+    return jsonResponse(await env.DB.listPosts({ page, limit, tag, admin }));
 }
 
 async function handleTags(env) {
-    const tagsData = await env.BLOG_KV.get('tags:index', { type: 'json' });
-    return jsonResponse(tagsData || { tags: [] });
+    return jsonResponse({ tags: await env.DB.listTags() });
 }
 
 async function handlePostGet(env, request, id) {
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
+    const postData = await env.DB.getPost(parseInt(id));
+    if (!postData) return jsonResponse({ error: '文章不存在' }, 404);
 
-    // Check if request is authenticated (admin)
     const authHeader = request.headers ? request.headers.get('Authorization') : null;
-    const isAdmin = authHeader && authHeader.startsWith('Bearer ');
     let validToken = false;
-    if (isAdmin) {
-        const token = authHeader.substring(7);
-        const session = await env.BLOG_KV.get('session:' + token, { type: 'json' });
-        validToken = !!session;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        validToken = !!(await env.DB.getSession(authHeader.substring(7)));
     }
 
-    // If post is locked, admins can see full content, others need password
     if (postData.locked && !validToken) {
         const unlockHeader = request.headers ? request.headers.get('X-Unlock-Password') : null;
-        if (unlockHeader && unlockHeader === postData.lockPassword) {
-            // Password matches, return full content
-            return jsonResponse(postData);
-        }
+        if (unlockHeader && unlockHeader === postData.lockPassword) return jsonResponse(postData);
         return jsonResponse({
             id: postData.id,
             title: postData.title,
@@ -195,252 +131,64 @@ async function handlePostGet(env, request, id) {
 async function handleToggleVisibility(env, request, id) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    const idx = indexData.findIndex(function(p) { return p.id === parseInt(id); });
-    if (idx < 0) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
-    const wasHidden = !!indexData[idx].hidden;
-    indexData[idx].hidden = !wasHidden;
-
-    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-
-    var postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (postData) {
-        postData.hidden = !wasHidden;
-        await env.BLOG_KV.put('post:' + id, JSON.stringify(postData));
-    }
-
-    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
-
-    return jsonResponse({
-        message: wasHidden ? '文章已公开' : '文章已隐藏',
-        id: parseInt(id),
-        hidden: !wasHidden
-    });
+    const result = await env.DB.toggleVisibility(parseInt(id));
+    if (!result) return jsonResponse({ error: '文章不存在' }, 404);
+    return jsonResponse(result);
 }
 
 async function handlePostLock(env, request, id) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
     const data = await request.json();
     const password = data.password || '';
-
-    if (!password) {
-        return jsonResponse({ error: '请输入解锁密码' }, 400);
-    }
-
-    postData.locked = true;
-    postData.lockPassword = password;
-    await env.BLOG_KV.put('post:' + id, JSON.stringify(postData));
-
-    // Update index
-    var indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    var idx = indexData.findIndex(function(p) { return p.id === parseInt(id); });
-    if (idx >= 0) {
-        indexData[idx].locked = true;
-        await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-    }
-
-    return jsonResponse({
-        message: '文章已上锁',
-        id: parseInt(id),
-        locked: true
-    });
+    if (!password) return jsonResponse({ error: '请输入解锁密码' }, 400);
+    const ok = await env.DB.setPostLock(parseInt(id), true, password);
+    if (!ok) return jsonResponse({ error: '文章不存在' }, 404);
+    return jsonResponse({ message: '文章已上锁', id: parseInt(id), locked: true });
 }
 
 async function handlePostUnlock(env, request, id) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
-    postData.locked = false;
-    postData.lockPassword = '';
-    await env.BLOG_KV.put('post:' + id, JSON.stringify(postData));
-
-    // Update index
-    var indexData2 = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    var idx2 = indexData2.findIndex(function(p) { return p.id === parseInt(id); });
-    if (idx2 >= 0) {
-        indexData2[idx2].locked = false;
-        await env.BLOG_KV.put('post:index', JSON.stringify(indexData2));
-    }
-
-    return jsonResponse({
-        message: '文章已解锁',
-        id: parseInt(id),
-        locked: false
-    });
+    const ok = await env.DB.setPostLock(parseInt(id), false, '');
+    if (!ok) return jsonResponse({ error: '文章不存在' }, 404);
+    return jsonResponse({ message: '文章已解锁', id: parseInt(id), locked: false });
 }
 
 async function handlePostVerifyLockPassword(env, request, id) {
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
-    if (!postData.locked) {
-        return jsonResponse({ valid: true });
-    }
-
+    const postData = await env.DB.getPost(parseInt(id));
+    if (!postData) return jsonResponse({ error: '文章不存在' }, 404);
+    if (!postData.locked) return jsonResponse({ valid: true });
     const data = await request.json();
-    const password = data.password || '';
-
-    if (password === postData.lockPassword) {
-        return jsonResponse({ valid: true });
-    } else {
-        return jsonResponse({ valid: false, error: '密码错误' }, 401);
-    }
+    if ((data.password || '') === postData.lockPassword) return jsonResponse({ valid: true });
+    return jsonResponse({ valid: false, error: '密码错误' }, 401);
 }
 
 async function handlePostCreate(env, request) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
     const data = await request.json();
-    const title = data.title;
-    const tags = data.tags;
-    const content = data.content;
-    const importDate = data.date;  // Date from import, if provided
-
-    if (!title || !content) {
-        return jsonResponse({ error: '标题和内容不能为空' }, 400);
-    }
-
-    const now = new Date().toISOString();
-    // Use import date if provided, otherwise use current date
-    const date = importDate || now.split('T')[0];
-    const contentLength = new Blob([content]).size;
-    const size = (contentLength / 1024).toFixed(1) + ' KB';
-    const readTime = Math.max(1, Math.ceil(content.length / 500));
-    const htmlContent = markdownToHtml(content);
-
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-
-    // Auto-generate ID
-    const postId = await getNextId(env, indexData);
-    await env.BLOG_KV.put('post:nextId', String(postId + 1));
-
-    const postData = {
-        id: postId,
-        title: title,
-        tags: tags || [],
-        content: content,
-        htmlContent: htmlContent,
-        date: date,
-        readTime: readTime,
-        size: size,
-        contentLength: contentLength,
-        hidden: true,  // New posts default to hidden
-        locked: false,
-        lockPassword: ''
-    };
-    await env.BLOG_KV.put('post:' + postId, JSON.stringify(postData));
-
-    const indexEntry = {
-        id: postId,
-        title: title,
-        tags: tags || [],
-        date: date,
-        size: size,
-        contentLength: contentLength,
-        hidden: true,
-        createdAt: now
-    };
-    indexData.push(indexEntry);
-    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-
+    if (!data.title || !data.content) return jsonResponse({ error: '标题和内容不能为空' }, 400);
+    const postId = await env.DB.createPost(buildPostData(data));
     return jsonResponse({ message: '文章保存成功', id: postId });
 }
 
 async function handlePostDelete(env, request, id) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
-    await env.BLOG_KV.delete('post:' + id);
-
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    const newIndex = indexData.filter(function(p) { return p.id !== parseInt(id); });
-    await env.BLOG_KV.put('post:index', JSON.stringify(newIndex));
-    await updateTagIndex(env, newIndex);
-
+    const ok = await env.DB.deletePost(parseInt(id));
+    if (!ok) return jsonResponse({ error: '文章不存在' }, 404);
     return jsonResponse({ message: '文章已删除', id: parseInt(id) });
 }
 
 async function handlePostUpdate(env, request, id) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const postData = await env.BLOG_KV.get('post:' + id, { type: 'json' });
-    if (!postData) {
-        return jsonResponse({ error: '文章不存在' }, 404);
-    }
-
+    const existingPost = await env.DB.getPost(parseInt(id));
+    if (!existingPost) return jsonResponse({ error: '文章不存在' }, 404);
     const data = await request.json();
-    const title = data.title;
-    const tags = data.tags;
-    const content = data.content;
-
-    if (!title || !content) {
-        return jsonResponse({ error: '标题和内容不能为空' }, 400);
-    }
-
-    const contentLength = new Blob([content]).size;
-    const size = (contentLength / 1024).toFixed(1) + ' KB';
-    const readTime = Math.max(1, Math.ceil(content.length / 500));
-    const htmlContent = markdownToHtml(content);
-
-    // Update the post, preserving lock status
-    const updatedPost = {
-        id: parseInt(id),
-        title: title,
-        tags: tags || [],
-        content: content,
-        htmlContent: htmlContent,
-        date: postData.date,  // Keep original date
-        readTime: readTime,
-        size: size,
-        contentLength: contentLength,
-        hidden: postData.hidden,
-        locked: postData.locked || false,
-        lockPassword: postData.lockPassword || ''
-    };
-    await env.BLOG_KV.put('post:' + id, JSON.stringify(updatedPost));
-
-    // Update index
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    const idx = indexData.findIndex(function(p) { return p.id === parseInt(id); });
-    if (idx >= 0) {
-        indexData[idx] = {
-            id: parseInt(id),
-            title: title,
-            tags: tags || [],
-            date: postData.date,
-            size: size,
-            contentLength: contentLength,
-            hidden: postData.hidden,
-            locked: postData.locked || false
-        };
-        await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-    }
-
+    if (!data.title || !data.content) return jsonResponse({ error: '标题和内容不能为空' }, 400);
+    await env.DB.updatePost(parseInt(id), buildPostData(data, existingPost));
     return jsonResponse({ message: '文章已更新', id: parseInt(id) });
 }
 
@@ -448,85 +196,41 @@ async function handleLogin(env, request) {
     const data = await request.json();
     const username = data.username;
     const password = data.password;
-
     const validUser = env.ADMIN_USER || 'admin';
     const validPass = env.ADMIN_PASS || 'admin123';
 
-    if (!username || !password) {
-        return jsonResponse({ error: '用户名和密码不能为空' }, 400);
-    }
-
-    if (username !== validUser || password !== validPass) {
-        return jsonResponse({ error: '用户名或密码错误' }, 401);
-    }
+    if (!username || !password) return jsonResponse({ error: '用户名和密码不能为空' }, 400);
+    if (username !== validUser || password !== validPass) return jsonResponse({ error: '用户名或密码错误' }, 401);
 
     const token = crypto.randomUUID
         ? crypto.randomUUID()
-        : Array.from(crypto.getRandomValues(new Uint8Array(16)))
-              .map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-
-    await env.BLOG_KV.put(
-        'session:' + token,
-        JSON.stringify({ username: username, createdAt: Date.now() }),
-        { expirationTtl: 86400 }
-    );
-
+        : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    await env.DB.createSession(token, username, 86400);
     return jsonResponse({ message: '登录成功', token: token, username: username });
 }
 
 async function handleLogout(env, request) {
     const authHeader = request.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        await env.BLOG_KV.delete('session:' + token);
-    }
+    if (authHeader && authHeader.startsWith('Bearer ')) await env.DB.deleteSession(authHeader.substring(7));
     return jsonResponse({ message: '已退出登录' });
 }
 
 async function handleVerify(env, request) {
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return jsonResponse({ error: '未提供认证令牌', valid: false }, 401);
-    }
-    const token = authHeader.substring(7);
-    const session = await env.BLOG_KV.get('session:' + token, { type: 'json' });
-    if (!session) {
-        return jsonResponse({ error: '令牌已过期或无效', valid: false }, 401);
-    }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return jsonResponse({ error: '未提供认证令牌', valid: false }, 401);
+    const session = await env.DB.getSession(authHeader.substring(7));
+    if (!session) return jsonResponse({ error: '令牌已过期或无效', valid: false }, 401);
     return jsonResponse({ valid: true, username: session.username });
 }
-
-
-// ==================== 导出/导入 ====================
 
 async function handleExport(env, request) {
     const authError = await verifyAuth(env, request);
     if (authError) return authError;
-
-    const indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-    var posts = [];
-
-    for (var i = 0; i < indexData.length; i++) {
-        var meta = indexData[i];
-        var postData = await env.BLOG_KV.get('post:' + meta.id, { type: 'json' });
-        if (postData) {
-            posts.push({
-                title: postData.title,
-                tags: postData.tags || [],
-                content: postData.content || '',
-                date: postData.date || meta.date,
-                hidden: !!postData.hidden,
-                id: postData.id || meta.id || null
-            });
-        }
-    }
-
-    var exportData = {
+    const exportData = {
         version: '1.0',
         exportDate: new Date().toISOString(),
-        posts: posts
+        posts: await env.DB.exportPosts()
     };
-
     return new Response(JSON.stringify(exportData, null, 2), {
         headers: {
             'Content-Type': 'application/json',
@@ -540,181 +244,77 @@ async function handleImport(env, request) {
     if (authError) return authError;
 
     var data;
-    try {
-        data = await request.json();
-    } catch (e) {
-        return jsonResponse({ error: '无效的 JSON 数据' }, 400);
-    }
-
-    if (!data.posts || !Array.isArray(data.posts)) {
-        return jsonResponse({ error: '数据格式错误，需要 posts 数组' }, 400);
-    }
+    try { data = await request.json(); } catch (e) { return jsonResponse({ error: '无效的 JSON 数据' }, 400); }
+    if (!data.posts || !Array.isArray(data.posts)) return jsonResponse({ error: '数据格式错误，需要 posts 数组' }, 400);
 
     var imported = 0, skipped = 0, failed = 0;
-    var indexData = await env.BLOG_KV.get('post:index', { type: 'json' }) || [];
-
     for (var i = 0; i < data.posts.length; i++) {
         var post = data.posts[i];
-        if (!post.title || !post.content) {
+        if (!post.title || !post.content) { failed++; continue; }
+        try {
+            await env.DB.createPost(buildPostData({
+                title: post.title,
+                tags: post.tags || [],
+                content: post.content,
+                date: post.date
+            }, { hidden: !!post.hidden, locked: false, lockPassword: '' }));
+            imported++;
+        } catch (e) {
             failed++;
-            continue;
         }
-
-        var now = new Date().toISOString();
-        var contentLength = new Blob([post.content]).size;
-        var size = (contentLength / 1024).toFixed(1) + ' KB';
-        var readTime = Math.max(1, Math.ceil(post.content.length / 500));
-        var htmlContent = markdownToHtml(post.content);
-
-        // Generate new ID for each post
-        var postId = await getNextId(env, indexData);
-        indexData.push(postId);
-
-        var postDate = post.date || now.split('T')[0];
-
-        var postData = {
-            id: postId,
-            title: post.title,
-            tags: post.tags || [],
-            content: post.content,
-            htmlContent: htmlContent,
-            date: postDate,
-            readTime: readTime,
-            size: size,
-            contentLength: contentLength,
-            hidden: !!post.hidden
-        };
-        await env.BLOG_KV.put('post:' + postId, JSON.stringify(postData));
-
-        var indexEntry = {
-            id: postId,
-            title: post.title,
-            tags: post.tags || [],
-            date: postDate,
-            size: size,
-            contentLength: contentLength,
-            hidden: !!post.hidden,
-            createdAt: now
-        };
-        indexData.push(indexEntry);
-        imported++;
     }
-
-    await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
-    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
-
-    return jsonResponse({
-        message: '导入完成',
-        imported: imported,
-        skipped: skipped,
-        failed: failed,
-        total: data.posts.length
-    });
+    return jsonResponse({ message: '导入完成', imported, skipped, failed, total: data.posts.length });
 }
 
-
-// ==================== 路由分发 ====================
 function handleAPI(request, env, pathname) {
     const url = new URL(request.url);
     const method = request.method;
 
-    // Auth routes
-    if (pathname === '/api/auth/login' && method === 'POST') {
-        return handleLogin(env, request);
-    }
-    if (pathname === '/api/auth/logout' && method === 'POST') {
-        return handleLogout(env, request);
-    }
-    if (pathname === '/api/auth/verify' && method === 'GET') {
-        return handleVerify(env, request);
-    }
+    if (pathname === '/api/auth/login' && method === 'POST') return handleLogin(env, request);
+    if (pathname === '/api/auth/logout' && method === 'POST') return handleLogout(env, request);
+    if (pathname === '/api/auth/verify' && method === 'GET') return handleVerify(env, request);
+    if (pathname === '/api/stats' && method === 'GET') return handleStats(env);
+    if (pathname === '/api/posts' && method === 'GET') return handlePostsList(env, url);
+    if (pathname === '/api/tags' && method === 'GET') return handleTags(env);
+    if (pathname === '/api/post' && method === 'POST') return handlePostCreate(env, request);
 
-    // Stats
-    if (pathname === '/api/stats' && method === 'GET') {
-        return handleStats(env);
-    }
-
-    // Posts list
-    if (pathname === '/api/posts' && method === 'GET') {
-        return handlePostsList(env, url);
-    }
-
-    // Tags
-    if (pathname === '/api/tags' && method === 'GET') {
-        return handleTags(env);
-    }
-
-    // Post create
-    if (pathname === '/api/post' && method === 'POST') {
-        return handlePostCreate(env, request);
-    }
-
-    // Post by ID: /api/post/:id
     var postMatch = pathname.match(/^\/api\/post\/(\d+)$/);
     if (postMatch) {
         var id = postMatch[1];
-        if (method === 'GET') {
-            return handlePostGet(env, request, id);
-        }
-        if (method === 'PUT') {
-            return handlePostUpdate(env, request, id);
-        }
-        if (method === 'DELETE') {
-            return handlePostDelete(env, request, id);
-        }
+        if (method === 'GET') return handlePostGet(env, request, id);
+        if (method === 'PUT') return handlePostUpdate(env, request, id);
+        if (method === 'DELETE') return handlePostDelete(env, request, id);
     }
 
-    // Toggle visibility: /api/post/:id/toggle
     var toggleMatch = pathname.match(/^\/api\/post\/(\d+)\/toggle$/);
-    if (toggleMatch && method === 'POST') {
-        return handleToggleVisibility(env, request, toggleMatch[1]);
-    }
+    if (toggleMatch && method === 'POST') return handleToggleVisibility(env, request, toggleMatch[1]);
 
-    // Lock post: /api/post/:id/lock
     var lockMatch = pathname.match(/^\/api\/post\/(\d+)\/lock$/);
-    if (lockMatch && method === 'POST') {
-        return handlePostLock(env, request, lockMatch[1]);
-    }
+    if (lockMatch && method === 'POST') return handlePostLock(env, request, lockMatch[1]);
 
-    // Unlock post: /api/post/:id/unlock
     var unlockMatch = pathname.match(/^\/api\/post\/(\d+)\/unlock$/);
-    if (unlockMatch && method === 'POST') {
-        return handlePostUnlock(env, request, unlockMatch[1]);
-    }
+    if (unlockMatch && method === 'POST') return handlePostUnlock(env, request, unlockMatch[1]);
 
-    // Verify lock password: /api/post/:id/verify-lock
     var verifyLockMatch = pathname.match(/^\/api\/post\/(\d+)\/verify-lock$/);
-    if (verifyLockMatch && method === 'POST') {
-        return handlePostVerifyLockPassword(env, request, verifyLockMatch[1]);
-    }
+    if (verifyLockMatch && method === 'POST') return handlePostVerifyLockPassword(env, request, verifyLockMatch[1]);
 
-    // Export
-    if (pathname === '/api/export' && method === 'GET') {
-        return handleExport(env, request);
-    }
+    if (pathname === '/api/export' && method === 'GET') return handleExport(env, request);
+    if (pathname === '/api/import' && method === 'POST') return handleImport(env, request);
 
-    // Import
-    if (pathname === '/api/import' && method === 'POST') {
-        return handleImport(env, request);
-    }
-
-    // Reset nextId counter
     if (pathname === '/api/reset-nextid' && method === 'POST') {
         return (async function() {
             const authError = await verifyAuth(env, request);
             if (authError) return authError;
-            await env.BLOG_KV.put('post:nextId', '10001');
+            await env.DB.resetAutoIncrement();
             return jsonResponse({ message: 'ID 计数器已重置为 10001' });
         })();
     }
 
-    // Reset all data (clear post:index and tags)
     if (pathname === '/api/reset-data' && method === 'POST') {
         return (async function() {
             const authError = await verifyAuth(env, request);
             if (authError) return authError;
-            await env.BLOG_KV.put('post:index', JSON.stringify([]));
-            await env.BLOG_KV.put('tags:index', JSON.stringify({ tags: [] }));
+            await env.DB.resetData();
             return jsonResponse({ message: '所有数据已清空' });
         })();
     }

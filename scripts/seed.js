@@ -1,11 +1,9 @@
 /**
- * 种子数据脚本 - 向 Cloudflare KV 写入初始博客数据
- * 
+ * 种子数据脚本 - 向本地博客服务写入初始博客数据
+ *
  * 用法:
- *   1. 先启动本地开发服务器: npm run dev
+ *   1. 先启动本地服务: npm run dev
  *   2. 然后运行: npm run seed
- * 
- * 或者直接调用 Cloudflare API 写入远程 KV
  */
 
 const POSTS = [
@@ -31,9 +29,9 @@ const POSTS = [
 \`\`\`javascript
 const blog = {
     frontend: 'HTML + CSS + Vanilla JS',
-    backend: 'Cloudflare Pages Functions',
-    storage: 'Cloudflare KV',
-    deployment: 'Cloudflare Pages',
+    backend: 'Local Node.js API',
+    storage: 'MySQL Database',
+    deployment: 'Docker or local Node.js',
     theme: 'Terminal / Hacker'
 };
 \`\`\`
@@ -45,28 +43,23 @@ const blog = {
 \`\`\`bash
 terminal-blog/
 ├── public/           # 静态文件
-│   └── index.html    # SPA 主页
-├── functions/        # Cloudflare Pages Functions (API)
-│   └── api/
-│       ├── stats.js
-│       ├── posts.js
-│       ├── tags.js
-│       └── post/
-│           ├── index.js
-│           └── [slug].js
-├── wrangler.toml     # Cloudflare 配置
+│   ├── index.html    # SPA 主页
+│   └── _worker.api.js # API 逻辑
+├── scripts/
+│   └── server.js     # 本地服务入口
+├── docker/           # Docker 运行配置
 └── package.json
 \`\`\`
 
-### 2. KV 数据结构
+### 2. MySQL 数据结构
 
-> Cloudflare KV 是一个全球分布式键值存储。
+> 本地服务使用 MySQL 关系表保存博客数据。
 
-我们使用以下 KV 键：
+我们使用以下关系表：
 
-- \`post:index\` — 文章列表索引 (JSON 数组)
-- \`post:{slug}\` — 单篇文章完整内容 (JSON)
-- \`tags:index\` — 标签列表 (JSON)
+- `posts` — 文章主体、HTML 内容、可见性、锁定状态
+- `post_tags` — 文章标签关联
+- `sessions` — 管理员登录会话
 
 ### 3. 部署
 
@@ -77,17 +70,17 @@ npm install
 # 本地开发
 npm run dev
 
-# 部署到 Cloudflare Pages
-npm run deploy
+# Docker 运行
+docker compose -f docker/docker-compose.yml up -d --build
 \`\`\`
 
 ## 总结
 
-使用 Cloudflare Pages + KV 构建博客，我们获得了：
+使用本地 Node.js 服务加 Docker，我们获得了：
 
-1. **全球 CDN** — Cloudflare 的全球网络保证快速访问
-2. **无限扩展** — Serverless 架构，无需管理服务器
-3. **极低成本** — KV 免费额度足够个人博客使用
+1. **完全本地化** — 不依赖云平台部署
+2. **数据可控** — 文章保存在 MySQL 关系表中
+3. **迁移简单** — 复制源码和数据目录即可迁移
 4. **终端美学** — 独特的视觉体验
 
 ---
@@ -333,7 +326,7 @@ async function main() {
         console.log('  ✅ 登录成功\n');
     } catch (e) {
         console.log(`  ❌ 登录失败: ${e.message}`);
-        console.log('  💡 提示: 确保 wrangler dev 已启动，且 ADMIN_USER/ADMIN_PASS 环境变量正确\n');
+        console.log('  💡 提示: 确保本地服务已启动，且 ADMIN_USER/ADMIN_PASS 环境变量正确\n');
         process.exit(1);
     }
 

@@ -4,19 +4,18 @@ set -eu
 : "${ADMIN_USER:=admin}"
 : "${ADMIN_PASS:=admin123}"
 : "${PORT:=8788}"
+: "${MYSQL_HOST:=127.0.0.1}"
+: "${MYSQL_PORT:=3306}"
+: "${MYSQL_DATABASE:=terminal_blog}"
+: "${MYSQL_USER:=blog_user}"
+: "${MYSQL_PASSWORD:=CHANGE_ME_PASSWORD}"
+: "${MYSQL_CONNECTION_LIMIT:=10}"
+: "${MYSQL_FIRST_POST_ID:=10001}"
 
-cat > /app/.dev.vars <<EOF_VARS
-ADMIN_USER="$ADMIN_USER"
-ADMIN_PASS="$ADMIN_PASS"
-EOF_VARS
+export ADMIN_USER ADMIN_PASS PORT MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_CONNECTION_LIMIT MYSQL_FIRST_POST_ID HOST=0.0.0.0
 
 echo "Starting Terminal Blog on 0.0.0.0:${PORT}"
 echo "Admin user: ${ADMIN_USER}"
-echo "Wrangler vars written to /app/.dev.vars"
+echo "MySQL: ${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}"
 
-exec ./node_modules/.bin/wrangler dev _worker.js \
-  --local \
-  --ip 0.0.0.0 \
-  --port "$PORT" \
-  --persist-to /app/.wrangler/state \
-  --show-interactive-dev-session false
+exec node scripts/server.js

@@ -1,155 +1,138 @@
 # Terminal Blog - 终端风格博客
 
-一个基于 Cloudflare Workers + KV 的终端风格博客系统，使用单个 `_worker.js` 文件部署。
+一个仅保留本地运行和 Docker 运行方式的终端风格博客系统。前端是 `public/index.html` 中的单页应用，后端是本地 Node.js 服务，数据保存到 MySQL 数据库。
 
-## 🏗️ 项目结构
+## 项目结构
 
 ```
 public/
-├── index.html          # 终端风格 SPA 前端（源文件）
-└── _worker.api.js      # API 逻辑（源文件）
+├── index.html          # 终端风格 SPA 前端
+└── _worker.api.js      # API 逻辑
 scripts/
+├── server.js           # 本地 Node.js 服务入口，连接 MySQL
 ├── seed.js             # 种子数据脚本
-└── build-worker.js     # 构建 _worker.js
-_worker.js              # ⭐ 自动生成的部署文件（HTML + API 合并）
-wrangler.toml           # Cloudflare 配置
+├── reset.js            # 重置数据脚本
+└── import.js           # Markdown 导入脚本
+docker/
+├── Dockerfile          # Docker 镜像构建文件
+├── docker-compose.yml  # Docker Compose 配置，只运行 blog 服务
+└── entrypoint.sh       # 容器启动脚本
+.env                    # 本地和 Docker 共用配置
 package.json            # npm 脚本
 ```
 
-## 🚀 快速开始
+## MySQL 准备
 
-### 本地开发
+本项目不再使用 KV 或本地 JSON 文件，启动时会自动在 MySQL 中创建关系表：`posts`、`post_tags` 和 `sessions`。
+
+先准备本地 MySQL 数据库和账号，示例：
+
+```sql
+CREATE DATABASE terminal_blog CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'blog_user'@'%' IDENTIFIED BY 'CHANGE_ME_PASSWORD';
+GRANT ALL PRIVILEGES ON terminal_blog.* TO 'blog_user'@'%';
+FLUSH PRIVILEGES;
+```
+
+然后修改主目录 `.env` 中的占位参数：
+
+```env
+PORT=8788
+HOST=0.0.0.0
+
+ADMIN_USER=admin
+ADMIN_PASS=admin123
+
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_DATABASE=terminal_blog
+MYSQL_USER=blog_user
+MYSQL_PASSWORD=CHANGE_ME_PASSWORD
+MYSQL_CONNECTION_LIMIT=10
+MYSQL_FIRST_POST_ID=10001
+```
+
+## 快速开始
+
+### 本地运行
 
 ```bash
-# 1. 安装依赖
 npm install
-
-# 2. 生成 _worker.js
-npm run build
-
-# 3. 启动本地开发服务器（Workers 模式）
 npm run dev
-
-# 4. （可选）填充种子数据
-npm run seed
 ```
 
 访问 http://localhost:8788
 
-### 部署到 Cloudflare Workers
+### 填充、导入和重置数据
+
+先启动本地服务，然后在另一个终端运行：
 
 ```bash
-# 1. 构建
-npm run build
-
-# 2. 登录 Cloudflare
-npx wrangler login
-
-# 3. 创建 KV Namespace
-npx wrangler kv namespace create BLOG_KV
-
-# 4. 更新 wrangler.toml 中的 KV id
-
-# 5. 部署
-npm run deploy
+npm run seed     # 写入 5 篇示例文章
+npm run import   # 导入 Markdown/ 目录下的 .md 文件
+npm run reset    # 清空文章、标签和 session，并重置自增 ID
 ```
 
-### 部署到 Cloudflare Pages
+脚本默认请求 `http://localhost:8788`，可用 `SEED_URL` 指向其他本地或 Docker 地址：
 
 ```bash
-npm run deploy:pages
+SEED_URL=http://localhost:3000 npm run seed
 ```
 
-### Docker 部署
+## Docker 运行
 
-Docker 镜像基于 Wrangler 本地运行时启动生成后的 `_worker.js`，构建阶段会在容器内执行 `npm ci` 和 `npm run build`，确保与本地 `npm run dev` 使用同一套源文件和运行逻辑。
-
-#### 方式一：Docker Compose（推荐）
-
-项目已提供 `docker/docker-compose.yml`。从仓库根目录运行：
+Docker 配置只运行博客服务，不内置 MySQL。请先确认 `.env` 中的 `MYSQL_HOST` 是容器可访问的数据库地址。若 MySQL 跑在宿主机上，Docker Desktop 通常可用 `host.docker.internal`。
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-自定义管理员密码：
-
-```bash
-ADMIN_USER=myuser ADMIN_PASS=mypassword docker compose -f docker/docker-compose.yml up -d --build
-```
-
-#### 方式二：Docker Run
-
-```bash
-# 从源码构建镜像；不需要先在宿主机运行 npm run build
-docker build -t terminal-blog -f docker/Dockerfile .
-
-# 运行（Wrangler 本地 KV 状态持久化到 Docker Volume；Markdown/download 为可选映射目录）
-docker run -d \
-  --name terminal-blog \
-  -p 8788:8788 \
-  -v blog-wrangler-state:/app/.wrangler/state \
-  -v "$(pwd)/Markdown:/app/Markdown" \
-  -v "$(pwd)/download:/app/download" \
-  terminal-blog
-
-# 自定义管理员密码
-docker run -d \
-  --name terminal-blog \
-  -p 8788:8788 \
-  -v blog-wrangler-state:/app/.wrangler/state \
-  -v "$(pwd)/Markdown:/app/Markdown" \
-  -v "$(pwd)/download:/app/download" \
-  -e ADMIN_USER=myuser \
-  -e ADMIN_PASS=mypassword \
-  terminal-blog
-```
-
 访问 http://localhost:8788
 
-#### 发布镜像
+### Docker Run
 
 ```bash
-docker build -t ieiian/terminal-blog:latest -f docker/Dockerfile .
-docker push ieiian/terminal-blog:latest
+docker build -t terminal-blog -f docker/Dockerfile .
+
+docker run -d \
+  --name terminal-blog \
+  --env-file .env \
+  -p 8788:8788 \
+  -v "$(pwd)/Markdown:/app/Markdown" \
+  -v "$(pwd)/download:/app/download" \
+  terminal-blog
 ```
 
-#### 管理命令
-
-```bash
-# 查看日志
-docker logs -f terminal-blog
-
-# 停止
-docker compose -f docker/docker-compose.yml down
-# 或
-docker stop terminal-blog
-
-# 停止并清除所有数据
-docker compose -f docker/docker-compose.yml down -v
-```
-
-## ⚙️ 环境变量
+## 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
+| `PORT` | 服务端口 | `8788` |
+| `HOST` | 监听地址 | `0.0.0.0` |
 | `ADMIN_USER` | 管理员用户名 | `admin` |
 | `ADMIN_PASS` | 管理员密码 | `admin123` |
+| `MYSQL_HOST` | MySQL 地址 | `127.0.0.1` |
+| `MYSQL_PORT` | MySQL 端口 | `3306` |
+| `MYSQL_DATABASE` | MySQL 数据库名 | `terminal_blog` |
+| `MYSQL_USER` | MySQL 用户名 | `blog_user` |
+| `MYSQL_PASSWORD` | MySQL 密码 | `CHANGE_ME_PASSWORD` |
+| `MYSQL_CONNECTION_LIMIT` | MySQL 连接池大小 | `10` |
+| `MYSQL_FIRST_POST_ID` | 文章 ID 初始值 | `10001` |
+| `SEED_URL` | seed/import/reset 脚本请求地址 | `http://localhost:8788` |
 
-## 📋 命令
+## 命令
 
 | 命令 | 说明 |
 |------|------|
-| `npm run build` | 生成 `_worker.js` |
-| `npm run dev` | Workers 模式本地开发 |
-| `npm run dev:pages` | Pages 模式本地开发 |
-| `npm run deploy` | 部署到 Workers |
-| `npm run deploy:pages` | 部署到 Pages |
+| `npm run dev` | 启动本地服务 |
+| `npm start` | 启动本地服务 |
 | `npm run seed` | 填充种子数据 |
+| `npm run import` | 导入 Markdown 文章 |
+| `npm run reset` | 重置 MySQL 中的博客数据 |
 
-## 🔧 开发说明
+## 开发说明
 
 - 修改前端：编辑 `public/index.html`
 - 修改 API：编辑 `public/_worker.api.js`
-- 修改后运行 `npm run build` 重新生成 `_worker.js`
-- `_worker.js` 是自动生成的，提交到 git 以便直接部署
+- 修改本地服务和 MySQL 访问层：编辑 `scripts/server.js`
+- 服务启动时会自动建表，但不会自动创建数据库或数据库账号。

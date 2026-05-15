@@ -1,7 +1,7 @@
 node_modules/
 .DS_Store
+.env.local
 .wrangler/
-.mf/
 
 # 过滤的文件和文件夹
 Markdown/

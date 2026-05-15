@@ -6,15 +6,15 @@
 node_modules/
 npm-debug.log*
 
-# Local Wrangler state/cache from the host
+# Old local runtime/cache folders
 .wrangler/
 
-# Local/generated files that the image rebuilds itself
-_worker.js
-
-# Runtime/data folders
+# Runtime folders
 Markdown/
 download/
+
+# Local override env files
+.env.local
 
 # Editor/assistant metadata
 .claude/
