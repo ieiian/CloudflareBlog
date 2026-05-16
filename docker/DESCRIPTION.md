@@ -11,12 +11,6 @@ services:
   terminal-blog:
     image: ieiian/terminal-blog:latest
     container_name: terminal-blog
-    build:
-      args:
-        SITE_TITLE: "我的博客"
-        WELCOME_MESSAGE: "欢迎访问我的博客"
-        SITE_URL: "example.com"
-        ICP_NUMBER: "粤ICP备XXXXXXXX号"
     ports:
       - "8788:8788"
     volumes:
@@ -27,9 +21,16 @@ services:
       # 可选：预留下载/导出文件目录；当前博客 UI 主要通过浏览器下载 JSON 导出文件
       - ./download:/app/download
     environment:
+      # 管理员账号
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASS: ${ADMIN_PASS:-admin123}
+      # 服务端口
       PORT: ${PORT:-8788}
+      # 站点配置（运行时生效）
+      SITE_TITLE: ${SITE_TITLE:-我的博客}
+      WELCOME_MESSAGE: ${WELCOME_MESSAGE:-欢迎访问我的博客}
+      SITE_URL: ${SITE_URL:-example.com}
+      ICP_NUMBER: ${ICP_NUMBER:-粤ICP备XXXXXXXX号}
     restart: unless-stopped
 
 volumes:
@@ -62,6 +63,10 @@ docker run -d \
   -v "$(pwd)/download:/app/download" \
   -e ADMIN_USER=admin \
   -e ADMIN_PASS=admin123 \
+  -e SITE_TITLE="我的博客" \
+  -e WELCOME_MESSAGE="欢迎访问我的博客" \
+  -e SITE_URL=example.com \
+  -e ICP_NUMBER="粤ICP备XXXXXXXX号" \
   ieiian/terminal-blog:latest
 ```
 

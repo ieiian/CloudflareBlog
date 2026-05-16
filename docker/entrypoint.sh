@@ -18,10 +18,11 @@ EOF_VARS
 
 # 动态更新 _worker.js 中的站点配置（运行时覆盖构建时配置）
 # 使用 sed 替换 config.js 中的配置值
-sed -i "s/siteTitle: '[^']*'/siteTitle: '$SITE_TITLE'/" /app/_worker.js
-sed -i "s/welcomeMessage: '[^']*'/welcomeMessage: '$WELCOME_MESSAGE'/" /app/_worker.js
-sed -i "s|siteUrl: '[^']*'|siteUrl: '$SITE_URL'|" /app/_worker.js
-sed -i "s|icpNumber: '[^']*'|icpNumber: '$ICP_NUMBER'|" /app/_worker.js
+# 注意：使用双引号允许变量展开，并对特殊字符进行转义
+sed -i "s/siteTitle: '[^']*'/siteTitle: '$(echo "$SITE_TITLE" | sed "s/'/\\\\'/g")'/" /app/_worker.js
+sed -i "s/welcomeMessage: '[^']*'/welcomeMessage: '$(echo "$WELCOME_MESSAGE" | sed "s/'/\\\\'/g")'/" /app/_worker.js
+sed -i "s|siteUrl: '[^']*'|siteUrl: '$(echo "$SITE_URL" | sed "s/'/\\\\'/g")'|" /app/_worker.js
+sed -i "s|icpNumber: '[^']*'|icpNumber: '$(echo "$ICP_NUMBER" | sed "s/'/\\\\'/g")'|" /app/_worker.js
 
 mkdir -p /app/download
 
