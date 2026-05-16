@@ -19,10 +19,21 @@ EOF_VARS
 # 动态更新 _worker.js 中的站点配置（运行时覆盖构建时配置）
 # 使用 sed 替换 config.js 中的配置值
 # 注意：使用双引号允许变量展开，并对特殊字符进行转义
+
+# 替换 SITE_CONFIG 对象中的配置
 sed -i "s/siteTitle: '[^']*'/siteTitle: '$(echo "$SITE_TITLE" | sed "s/'/\\\\'/g")'/" /app/_worker.js
 sed -i "s/welcomeMessage: '[^']*'/welcomeMessage: '$(echo "$WELCOME_MESSAGE" | sed "s/'/\\\\'/g")'/" /app/_worker.js
 sed -i "s|siteUrl: '[^']*'|siteUrl: '$(echo "$SITE_URL" | sed "s/'/\\\\'/g")'|" /app/_worker.js
 sed -i "s|icpNumber: '[^']*'|icpNumber: '$(echo "$ICP_NUMBER" | sed "s/'/\\\\'/g")'|" /app/_worker.js
+
+# 替换 HTML 中静态显示的标题（~ zsh 部分）
+sed -i "s/>TerminalBlog ~ zsh</>$(echo "$SITE_TITLE" | sed 's/</\\</g; s/>/\\>/g') ~ zsh</" /app/_worker.js
+
+# 替换页脚中的站点标题
+sed -i "s/> © 2026 TerminalBlog /> © 2026 $(echo "$SITE_TITLE" | sed 's/</\\</g; s/>/\\>/g') /" /app/_worker.js
+
+# 替换欢迎语（静态显示在首页）
+sed -i "s/>欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。</>$(echo "$WELCOME_MESSAGE" | sed 's/</\\</g; s/>/\\>/g; s/\//\\\//g')</" /app/_worker.js
 
 mkdir -p /app/download
 

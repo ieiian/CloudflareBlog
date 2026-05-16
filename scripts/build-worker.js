@@ -106,8 +106,9 @@ const SITE_CONFIG = {
 htmlContent = htmlContent.replace('<head>', '<head>' + configScript);
 
 // 替换 HTML 中的 SITE_CONFIG 模板占位符（用于静态显示的标题等）
-htmlContent = htmlContent.replace(/\${SITE_CONFIG \? SITE_CONFIG\.siteTitle : '([^']+)'}/g, config.SITE_TITLE);
-htmlContent = htmlContent.replace(/\${SITE_CONFIG \? SITE_CONFIG\.welcomeMessage : '([^']+)'}/g, config.WELCOME_MESSAGE);
+// 注意：保留这些占位符，让运行时可以通过 sed 动态替换
+// htmlContent = htmlContent.replace(/\${SITE_CONFIG \? SITE_CONFIG\.siteTitle : '([^']+)'}/g, config.SITE_TITLE);
+// htmlContent = htmlContent.replace(/\${SITE_CONFIG \? SITE_CONFIG\.welcomeMessage : '([^']+)'}/g, config.WELCOME_MESSAGE);
 
 // 转义 HTML 中的反引号和 ${} 模板字符串语法
 const escapedHtml = htmlContent
