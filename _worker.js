@@ -35,10 +35,43 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
         body {
             font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            background: var(--bg);
+            background:
+                radial-gradient(circle at 20% 20%, rgba(0, 255, 65, 0.08), transparent 28%),
+                radial-gradient(circle at 80% 0%, rgba(0, 229, 255, 0.06), transparent 24%),
+                var(--bg);
             color: var(--text);
             line-height: 1.7;
             font-size: 14px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Subtle animated terminal background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0, 255, 65, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.035) 1px, transparent 1px),
+                linear-gradient(120deg, transparent 0%, rgba(0, 255, 65, 0.035) 48%, transparent 54%);
+            background-size: 56px 56px, 56px 56px, 260px 100%;
+            background-position: 0 0, 0 0, -260px 0;
+            animation: bgDrift 22s linear infinite;
+            opacity: 0.42;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes bgDrift {
+            0% { background-position: 0 0, 0 0, -260px 0; }
+            100% { background-position: 56px 56px, 56px 56px, 100vw 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            body::before {
+                animation: none;
+            }
         }
 
         /* Scanline effect */
@@ -81,6 +114,8 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
         /* Terminal window */
         .terminal {
+            position: relative;
+            z-index: 1;
             max-width: 900px;
             margin: 30px auto;
             border: 1px solid var(--border);
@@ -118,7 +153,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
         /* Terminal body */
         .term-body {
-            background: var(--bg);
+            background: rgba(13, 17, 23, 0.94);
             padding: 24px;
         }
 
