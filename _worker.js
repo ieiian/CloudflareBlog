@@ -2061,11 +2061,11 @@ const HTML_CONTENT = `<!DOCTYPE html>
                 if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
                     drops[i] = 0;
                 }
-                drops[i] += 0.038;
+                drops[i] += 0.09;
             }
         }
 
-        setInterval(draw, 45);
+        setInterval(draw, 28);
     })();
 
     render();
