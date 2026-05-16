@@ -719,5 +719,46 @@ function handleAPI(request, env, pathname) {
         })();
     }
 
+    // 文件下载 /download/*（仅在本地/Docker环境有效，Cloudflare 部署需配置 R2 存储绑定）
+    var downloadMatch = pathname.match(/^\/download\/(.+)$/);
+    if (downloadMatch && method === 'GET') {
+        var filepath = downloadMatch[1].split('?')[0].split('#')[0];
+        // 安全限制：只允许字母、数字、点、中划线、下划线
+        if (!/^[a-zA-Z0-9._-]+$/.test(filepath)) {
+            return jsonResponse({ error: '文件名包含非法字符' }, 400);
+        }
+        // 本地/Docker：直接从 download/ 目录读取文件
+        var localPath = 'download/' + filepath;
+        try {
+            var fs = require('node:fs');
+            if (fs.existsSync(localPath)) {
+                var stat = fs.statSync(localPath);
+                var mimeMap = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+                    '.pdf': 'application/pdf', '.zip': 'application/zip',
+                    '.js': 'application/javascript', '.css': 'text/css',
+                    '.txt': 'text/plain', '.json': 'application/json',
+                    '.md': 'text/markdown', '.html': 'text/html',
+                    '.mp4': 'video/mp4', '.mp3': 'audio/mpeg',
+                };
+                var ext = filepath.match(/\.[^.]+$/)?.[0].toLowerCase() || '';
+                var contentType = mimeMap[ext] || 'application/octet-stream';
+                var fileBuffer = fs.readFileSync(localPath);
+                return new Response(fileBuffer, {
+                    status: 200,
+                    headers: {
+                        'Content-Type': contentType,
+                        'Content-Length': String(fileBuffer.length),
+                        'Cache-Control': 'public, max-age=86400',
+                    }
+                });
+            }
+            return jsonResponse({ error: '文件不存在' }, 404);
+        } catch (e) {
+            return jsonResponse({ error: '读取文件失败' }, 502);
+        }
+    }
+
     return jsonResponse({ error: 'API 路由不存在' }, 404);
 }
