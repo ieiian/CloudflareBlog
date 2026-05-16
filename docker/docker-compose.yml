@@ -24,6 +24,10 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASS: ${ADMIN_PASS:-admin123}
       PORT: ${PORT:-8788}
+      SITE_TITLE: ${SITE_TITLE:-TerminalBlog}
+      WELCOME_MESSAGE: ${WELCOME_MESSAGE:-欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。}
+      SITE_URL: ${SITE_URL:-https://myURL.com}
+      ICP_NUMBER: ${ICP_NUMBER:-ICP粤B12345678号}
     restart: unless-stopped
 
 volumes:

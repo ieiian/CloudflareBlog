@@ -1,14 +1,27 @@
 #!/bin/sh
 set -eu
 
-: "${ADMIN_USER:=admin}"
-: "${ADMIN_PASS:=admin123}"
-: "${PORT:=8788}"
+# 读取环境变量（docker-compose.yml 传入的），使用默认值
+ADMIN_USER="${ADMIN_USER:-admin}"
+ADMIN_PASS="${ADMIN_PASS:-admin123}"
+PORT="${PORT:-8788}"
+SITE_TITLE="${SITE_TITLE:-TerminalBlog}"
+WELCOME_MESSAGE="${WELCOME_MESSAGE:-欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。}"
+SITE_URL="${SITE_URL:-https://myURL.com}"
+ICP_NUMBER="${ICP_NUMBER:-ICP粤B12345678号}"
 
+# 生成 .dev.vars（供 Wrangler 运行时使用）
 cat > /app/.dev.vars <<EOF_VARS
-ADMIN_USER="$ADMIN_USER"
-ADMIN_PASS="$ADMIN_PASS"
+ADMIN_USER=$ADMIN_USER
+ADMIN_PASS=$ADMIN_PASS
 EOF_VARS
+
+# 动态更新 _worker.js 中的站点配置（运行时覆盖构建时配置）
+# 使用 sed 替换 config.js 中的配置值
+sed -i "s/siteTitle: '[^']*'/siteTitle: '$SITE_TITLE'/" /app/_worker.js
+sed -i "s/welcomeMessage: '[^']*'/welcomeMessage: '$WELCOME_MESSAGE'/" /app/_worker.js
+sed -i "s|siteUrl: '[^']*'|siteUrl: '$SITE_URL'|" /app/_worker.js
+sed -i "s|icpNumber: '[^']*'|icpNumber: '$ICP_NUMBER'|" /app/_worker.js
 
 mkdir -p /app/download
 

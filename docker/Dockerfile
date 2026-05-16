@@ -5,19 +5,20 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# 站点配置参数（默认值）
+# 站点配置参数（构建时默认值）
 ARG SITE_TITLE=TerminalBlog
 ARG WELCOME_MESSAGE=欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。
 ARG SITE_URL=https://myURL.com
 ARG ICP_NUMBER=ICP粤B12345678号
 
-ENV ADMIN_USER=admin \
-    ADMIN_PASS=admin123 \
-    PORT=8788 \
-    SITE_TITLE=${SITE_TITLE} \
-    WELCOME_MESSAGE=${WELCOME_MESSAGE} \
-    SITE_URL=${SITE_URL} \
-    ICP_NUMBER=${ICP_NUMBER}
+# ENV 使用 ${VAR:-default} 语法，允许运行时覆盖
+ENV ADMIN_USER=${ADMIN_USER:-admin} \
+    ADMIN_PASS=${ADMIN_PASS:-admin123} \
+    PORT=${PORT:-8788} \
+    SITE_TITLE=${SITE_TITLE:-TerminalBlog} \
+    WELCOME_MESSAGE=${WELCOME_MESSAGE:-欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。} \
+    SITE_URL=${SITE_URL:-https://myURL.com} \
+    ICP_NUMBER=${ICP_NUMBER:-ICP粤B12345678号}
 
 # 只在容器内安装依赖，确保 Wrangler/workerd 使用 Linux 平台二进制；不要复制宿主机 node_modules。
 # 使用 Debian slim 而不是 Alpine：workerd Linux 二进制依赖 glibc，在 musl/Alpine 下可能表现为 ENOENT。
