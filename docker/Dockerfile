@@ -30,6 +30,9 @@ RUN npm run build
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
+# 预安装静态文件服务器（构建时安装，避免运行时下载）
+RUN npm install --no-save serve@14 && rm -rf /root/.npm
+
 ENV NODE_ENV=production
 
 # Wrangler 本地 KV/运行状态持久化目录。挂载该目录即可保留文章数据。

@@ -2802,7 +2802,7 @@ async function handleAPI(request, env, pathname) {
             return jsonResponse({ error: '文件名包含非法字符' }, 400);
         }
         try {
-            var upstreamRes = await fetch('http://127.0.0.1:8789/download/' + filePath);
+            var upstreamRes = await fetch('http://127.0.0.1:8789/' + filePath);
             if (!upstreamRes.ok && upstreamRes.status === 404) {
                 return jsonResponse({ error: '文件不存在' }, 404);
             }
@@ -2827,8 +2827,8 @@ export default {
         var url = new URL(request.url);
         var pathname = url.pathname;
 
-        // API 路由
-        if (pathname.startsWith('/api/')) {
+        // API 路由和下载路由
+        if (pathname.startsWith('/api/') || pathname.startsWith('/download/')) {
             try {
                 return await handleAPI(request, env, pathname);
             } catch (err) {

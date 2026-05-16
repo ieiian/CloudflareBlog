@@ -1,6 +1,7 @@
 services:
   terminal-blog:
-    image: ieiian/terminal-blog:latest
+    image: terminal-blog:latest
+    # image: ieiian/terminal-blog:latest
     build:
       context: ..
       dockerfile: docker/Dockerfile
