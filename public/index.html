@@ -29,10 +29,7 @@
 
         body {
             font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            background:
-                radial-gradient(circle at 20% 20%, rgba(0, 255, 65, 0.08), transparent 28%),
-                radial-gradient(circle at 80% 0%, rgba(0, 229, 255, 0.06), transparent 24%),
-                var(--bg);
+            background: var(--bg);
             color: var(--text);
             line-height: 1.7;
             font-size: 14px;
@@ -40,32 +37,13 @@
             overflow-x: hidden;
         }
 
-        /* Subtle animated terminal background */
-        body::before {
-            content: '';
+        /* Matrix rain canvas */
+        #matrix-bg {
             position: fixed;
             inset: 0;
-            background-image:
-                linear-gradient(rgba(0, 255, 65, 0.055) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 229, 255, 0.035) 1px, transparent 1px),
-                linear-gradient(120deg, transparent 0%, rgba(0, 255, 65, 0.035) 48%, transparent 54%);
-            background-size: 56px 56px, 56px 56px, 260px 100%;
-            background-position: 0 0, 0 0, -260px 0;
-            animation: bgDrift 22s linear infinite;
-            opacity: 0.42;
             pointer-events: none;
             z-index: -1;
-        }
-
-        @keyframes bgDrift {
-            0% { background-position: 0 0, 0 0, -260px 0; }
-            100% { background-position: 56px 56px, 56px 56px, 100vw 0; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            body::before {
-                animation: none;
-            }
+            opacity: 0.07;
         }
 
         /* Scanline effect */
@@ -760,6 +738,7 @@
     </style>
 </head>
 <body>
+    <canvas id="matrix-bg"></canvas>
     <div id="toastContainer"></div>
 
     <div class="terminal">
@@ -2037,6 +2016,52 @@
             currentSlug = pathMatch[1];
         }
     })();
+
+    // ============ Matrix Rain Background ============
+    (function() {
+        var canvas = document.getElementById('matrix-bg');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var cols, drops;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            var fontSize = 11;
+            cols = Math.floor(canvas.width / fontSize);
+            drops = [];
+            for (var i = 0; i < cols; i++) {
+                drops[i] = Math.random() * -100;
+            }
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+        var hue = 140; // green hue
+
+        function draw() {
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.04)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '11px JetBrains Mono, monospace';
+
+            for (var i = 0; i < cols; i++) {
+                var char = chars[Math.floor(Math.random() * chars.length)];
+                // Head column brighter, tail fading
+                var brightness = Math.random() > 0.94 ? 1 : 0.35;
+                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 25) + '%, ' + (brightness * 0.45) + ')';
+                ctx.fillText(char, i * 11, drops[i] * 11);
+
+                if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i] += 0.038;
+            }
+        }
+
+        setInterval(draw, 45);
+    })();
+
     render();
     </script>
 </body>
