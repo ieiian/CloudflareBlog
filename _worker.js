@@ -6,10 +6,19 @@
 
 const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="zh-CN">
-<head>
+<head><script>
+const SITE_CONFIG = {
+    siteTitle: 'TerminalBlog',
+    welcomeMessage: '欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。',
+    siteUrl: 'https://myURL.com',
+    icpNumber: 'ICP粤B12345678号'
+};
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terminal Blog</title>
+    <!-- SITE_CONFIG 将在构建时由 build-worker.js 注入 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.8/marked.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
@@ -752,7 +761,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
             <div class="dot red" onclick="navigate('home')"></div>
             <div class="dot yellow" onclick="navigate('tags')"></div>
             <div class="dot green" onclick="navigate('admin')"></div>
-            <div class="title" id="titleBar">hacker@blog ~ zsh</div>
+            <div class="title" id="titleBar">TerminalBlog ~ zsh</div>
         </div>
 
         <div class="term-body" id="termBody">
@@ -772,6 +781,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
     <div class="term-footer">
         <p>© 2026 TerminalBlog · 终端黑客风格 · Powered by TSE</p>
         <p style="margin-top: 8px; color: var(--gray-dim);">$ echo "Stay hungry, stay hacking."</p>
+        <div id="siteFooter" style="font-size: 0.85em; opacity: 0.8; border-top: 1px dashed rgba(255,255,255,0.15); margin-top: 10px; padding-top: 8px; color: var(--gray-dim);"></div>
     </div>
 
     <script>
@@ -1095,10 +1105,13 @@ const HTML_CONTENT = `<!DOCTYPE html>
                 </div>
             \`;
         }
+
+        // 页面渲染完成后初始化页脚
+        initFooter();
     }
 
     async function renderHome(body) {
-        setTitle('hacker@blog ~ zsh');
+        setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle + ' ~ zsh' : 'TerminalBlog ~ zsh');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
         const [stats, posts] = await Promise.all([
@@ -2054,19 +2067,39 @@ const HTML_CONTENT = `<!DOCTYPE html>
             for (var i = 0; i < cols; i++) {
                 var char = chars[Math.floor(Math.random() * chars.length)];
                 // Head column brighter, tail fading
-                var brightness = Math.random() > 0.94 ? 1 : 0.35;
-                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 25) + '%, ' + (brightness * 0.45) + ')';
+                var brightness = Math.random() > 0.90 ? 1 : 0.35;
+                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 75) + '%, ' + (brightness * 0.85) + ')';
                 ctx.fillText(char, i * 11, drops[i] * 11);
 
                 if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
                     drops[i] = 0;
                 }
-                drops[i] += 0.09;
+                drops[i] += 0.19;
             }
         }
 
         setInterval(draw, 28);
     })();
+
+    // ============ 初始化页脚信息 ============
+    function initFooter() {
+        const footer = document.getElementById('siteFooter');
+        if (!footer) return;
+
+        const siteUrl = SITE_CONFIG && SITE_CONFIG.siteUrl ? SITE_CONFIG.siteUrl : '';
+        const icpNumber = SITE_CONFIG && SITE_CONFIG.icpNumber ? SITE_CONFIG.icpNumber : '';
+
+        let footerHtml = '';
+        if (siteUrl) {
+            footerHtml += '<strong>HOST:</strong> <a href="' + siteUrl + '" target="_blank" style="color: inherit; text-decoration: underline; text-underline-offset: 3px;">' + siteUrl.replace(/^https?:\\/\\//, '') + '</a>';
+        }
+        footerHtml += ' | <strong>STATUS:</strong> <span style="color: #00ff00;">RUNNING</span>';
+        if (icpNumber) {
+            footerHtml += ' | <strong>ICP:</strong> <a href="https://beian.miit.gov.cn/" target="_blank" style="color: inherit; text-decoration: underline; text-underline-offset: 3px;">' + icpNumber + '</a>';
+        }
+
+        footer.innerHTML = footerHtml;
+    }
 
     render();
     </script>

@@ -11,6 +11,12 @@ services:
   terminal-blog:
     image: ieiian/terminal-blog:latest
     container_name: terminal-blog
+    build:
+      args:
+        SITE_TITLE: "我的博客"
+        WELCOME_MESSAGE: "欢迎访问我的博客"
+        SITE_URL: "example.com"
+        ICP_NUMBER: "粤ICP备XXXXXXXX号"
     ports:
       - "8788:8788"
     volumes:
@@ -66,8 +72,12 @@ docker run -d \
 | `ADMIN_USER` | 管理员用户名；容器入口脚本会写入 `/app/.dev.vars` 供 Worker 的 `env.ADMIN_USER` 使用 | `admin` |
 | `ADMIN_PASS` | 管理员密码；容器入口脚本会写入 `/app/.dev.vars` 供 Worker 的 `env.ADMIN_PASS` 使用 | `admin123` |
 | `PORT` | 容器内监听端口；通常保持 8788，只改宿主机端口映射即可 | `8788` |
+| `SITE_TITLE` | 网站标题（显示在标题栏） | `TerminalBlog` |
+| `WELCOME_MESSAGE` | 欢迎语 | `欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。` |
+| `SITE_URL` | 网站地址（用于页脚显示，不带协议） | 空 |
+| `ICP_NUMBER` | ICP 备案号 | 空 |
 
-自定义管理员账号密码：
+自定义管理员账号和站点配置：
 
 ```bash
 docker run -d \
@@ -76,6 +86,10 @@ docker run -d \
   -v blog-wrangler-state:/app/.wrangler/state \
   -e ADMIN_USER=myuser \
   -e ADMIN_PASS=mypassword \
+  -e SITE_TITLE="我的博客" \
+  -e WELCOME_MESSAGE="欢迎访问我的博客" \
+  -e SITE_URL=example.com \
+  -e ICP_NUMBER="粤ICP备XXXXXXXX号" \
   ieiian/terminal-blog:latest
 ```
 

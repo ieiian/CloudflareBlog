@@ -5,9 +5,19 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
+# 站点配置参数（默认值）
+ARG SITE_TITLE=TerminalBlog
+ARG WELCOME_MESSAGE=欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。
+ARG SITE_URL=https://myURL.com
+ARG ICP_NUMBER=ICP粤B12345678号
+
 ENV ADMIN_USER=admin \
     ADMIN_PASS=admin123 \
-    PORT=8788
+    PORT=8788 \
+    SITE_TITLE=${SITE_TITLE} \
+    WELCOME_MESSAGE=${WELCOME_MESSAGE} \
+    SITE_URL=${SITE_URL} \
+    ICP_NUMBER=${ICP_NUMBER}
 
 # 只在容器内安装依赖，确保 Wrangler/workerd 使用 Linux 平台二进制；不要复制宿主机 node_modules。
 # 使用 Debian slim 而不是 Alpine：workerd Linux 二进制依赖 glibc，在 musl/Alpine 下可能表现为 ENOENT。
@@ -24,6 +34,13 @@ RUN npm ci --include=dev --no-audit --no-fund \
 COPY public ./public
 COPY scripts ./scripts
 COPY wrangler.toml ./wrangler.toml
+
+# 创建 .env 文件供构建脚本使用
+RUN echo "SITE_TITLE=${SITE_TITLE}" > .env && \
+    echo "WELCOME_MESSAGE=${WELCOME_MESSAGE}" >> .env && \
+    echo "SITE_URL=${SITE_URL}" >> .env && \
+    echo "ICP_NUMBER=${ICP_NUMBER}" >> .env
+
 RUN npm run build
 
 # 复制容器入口脚本；入口脚本会把 Docker 环境变量转换成 Wrangler vars，确保 Worker env.ADMIN_USER/env.ADMIN_PASS 生效。
@@ -44,4 +61,3 @@ EXPOSE 8788
 # 使用 Wrangler 本地运行时启动生成后的 _worker.js，与本地 npm run dev 保持一致。
 # 入口脚本生成 .dev.vars，把容器环境变量注入 Worker runtime env。
 CMD ["/app/docker-entrypoint.sh"]
-
