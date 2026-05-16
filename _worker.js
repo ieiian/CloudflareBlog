@@ -2689,7 +2689,7 @@ async function handleImport(env, request) {
 
 
 // ==================== 路由分发 ====================
-function handleAPI(request, env, pathname) {
+async function handleAPI(request, env, pathname) {
     const url = new URL(request.url);
     const method = request.method;
 
