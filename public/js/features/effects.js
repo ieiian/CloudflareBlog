@@ -1336,15 +1336,96 @@
 
     // 检测是否为移动端
     var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    // 更可靠的 Safari 检测
-    // 检测需要风雪效果的浏览器（Safari、Firefox 等存在代码雨渲染问题的浏览器）
-    var isSafari = /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
-    var isFirefox = /Firefox/i.test(navigator.userAgent);
-    var isEdge = /Edg/i.test(navigator.userAgent);
-    // 需要风雪效果的浏览器：Safari、Firefox
-    // 其他浏览器（Chrome、Edge 等）使用代码雨效果
-    var needsSnowEffect = isSafari || isFirefox;
     var clearAlpha = isMobile ? 0.03 : 0.005;
+
+    /**
+     * 已知存在代码雨尾迹重叠（canvas 半透明淡出失效）的环境：
+     * - WebKit Safari（macOS）
+     * - iOS 全系（内核均为 WebKit）
+     * - Firefox / Gecko
+     * - Windows 下的 Chromium 系（Chrome、Edge 等；macOS Chrome 正常）
+     */
+    function isKnownMatrixRainBuggyEnv() {
+        var ua = navigator.userAgent;
+
+        var isWebKitSafari = /Safari/i.test(ua) &&
+            !/Chromium|Chrome|CriOS|Edg|OPR|FxiOS/i.test(ua);
+
+        var isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+        var isFirefox = /Firefox/i.test(ua) || /FxiOS/i.test(ua);
+
+        var isWindows = /Windows/i.test(ua);
+        var isChromium = /Chrome|Chromium|Edg|OPR/i.test(ua) && !/Firefox/i.test(ua);
+        var isWindowsChromium = isWindows && isChromium;
+
+        return isWebKitSafari || isIOS || isFirefox || isWindowsChromium;
+    }
+
+    /**
+     * 运行时探测：模拟代码雨的半透明背景覆盖淡出是否生效。
+     * 正常环境多次覆盖后亮色应接近背景 #0d1117；异常环境绿色残留偏高。
+     */
+    function probeMatrixFadeWorks() {
+        try {
+            var probe = document.createElement('canvas');
+            probe.width = 8;
+            probe.height = 8;
+            var pctx = probe.getContext('2d', { willReadFrequently: true });
+            if (!pctx) return true;
+
+            pctx.fillStyle = 'hsla(140, 100%, 70%, 0.85)';
+            pctx.fillRect(0, 0, 8, 8);
+
+            pctx.fillStyle = 'rgba(13, 17, 23, 0.005)';
+            pctx.fillRect(0, 0, 8, 8);
+            var afterOne = pctx.getImageData(4, 4, 1, 1).data[1];
+
+            for (var fi = 0; fi < 199; fi++) {
+                pctx.fillStyle = 'rgba(13, 17, 23, 0.005)';
+                pctx.fillRect(0, 0, 8, 8);
+            }
+            var afterMany = pctx.getImageData(4, 4, 1, 1).data[1];
+
+            var fadeDelta = afterOne - afterMany;
+            return fadeDelta > 15 && afterMany < 40;
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function resolveSnowEffect() {
+        var knownBuggy = isKnownMatrixRainBuggyEnv();
+
+        try {
+            var cached = sessionStorage.getItem('matrix_rain_use_snow');
+            if (cached === '1') {
+                console.log('代码雨渲染模式: 风雪效果（session 缓存）| 已知问题环境:', knownBuggy);
+                return true;
+            }
+            if (cached === '0') {
+                console.log('代码雨渲染模式: Matrix 代码雨（session 缓存）| 已知问题环境:', knownBuggy);
+                return false;
+            }
+        } catch (e) {}
+
+        var fadeWorks = probeMatrixFadeWorks();
+        var useSnow = knownBuggy || !fadeWorks;
+
+        try {
+            sessionStorage.setItem('matrix_rain_use_snow', useSnow ? '1' : '0');
+        } catch (e) {}
+
+        console.log(
+            '代码雨渲染模式:',
+            useSnow ? '风雪效果（canvas 淡出异常或已知问题环境）' : 'Matrix 代码雨',
+            '| 已知问题环境:', knownBuggy,
+            '| 淡出探测通过:', fadeWorks
+        );
+        return useSnow;
+    }
+
+    var needsSnowEffect = resolveSnowEffect();
 
     // 映射基础字符集
     var BASE_SETS = {
@@ -1479,7 +1560,7 @@
     function draw() {
         ctx.font = fontSize + 'px "JetBrains Mono", monospace';
         
-        // Safari/Firefox 方案：风雪飘落 + 终端窗口凝霜效果
+        // 风雪飘落 + 终端窗口凝霜（用于 canvas 半透明淡出异常的环境）
         if (needsSnowEffect) {
             // 每帧完全清除背景
             ctx.fillStyle = '#0d1117';
@@ -1516,7 +1597,7 @@
             }
             
             // ============ 边缘凝霜效果 ============
-            var frostThickness = 60; // 霜冻厚度
+            var frostThickness = 80; // 霜冻厚度
             var frostOpacity = 0.15; // 基础透明度
             
             // 创建霜冻渐变 - 顶部
@@ -1636,7 +1717,7 @@
     }
     requestAnimationFrame(tick);
     
-    // Safari/Firefox 浏览器：自动为终端窗口添加凝霜效果
+    // 存在 canvas 淡出问题的环境：自动为终端窗口添加凝霜效果
     if (needsSnowEffect) {
         // 等待 DOM 加载完成后添加凝霜 class
         document.addEventListener('DOMContentLoaded', function() {

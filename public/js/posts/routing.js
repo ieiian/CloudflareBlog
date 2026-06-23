@@ -257,7 +257,7 @@
 
             <div class="sysinfo">
                 <p><span class="highlight">$</span> uname -a</p>
-                <p>TerminalBlog 1.0.0 RELEASE_X86_64 GNU/Linux UTF-8</p>
+                <p>TerminalBlog 1.0.0 GNU/Linux UTF-8</p>
             </div>
 
             ${separator()}
